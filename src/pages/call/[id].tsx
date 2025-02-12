@@ -30,6 +30,13 @@ export default function CallPage() {
     const localVideoRef = useRef<HTMLVideoElement>(null);
     const remoteVideoRef = useRef<HTMLVideoElement>(null);
 
+    // Add these new state variables at the top of the component
+    const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
+    const [selectedCamera, setSelectedCamera] = useState<string>('');
+
+    // Add state for camera selector visibility
+    const [isCameraSelectorOpen, setIsCameraSelectorOpen] = useState(false);
+
     // Add at the start of the component
     useEffect(() => {
         console.log('Component mounted with:', {
@@ -69,7 +76,7 @@ export default function CallPage() {
             const setupMediaStream = async () => {
                 try {
                     const stream = await navigator.mediaDevices.getUserMedia({
-                        video: true,
+                        video: selectedCamera ? { deviceId: selectedCamera } : true,
                         audio: true
                     });
                     setLocalStream(stream);
@@ -298,91 +305,210 @@ export default function CallPage() {
         }
     };
 
+    // Add this new useEffect to get available devices
+    useEffect(() => {
+        const getDevices = async () => {
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const videoDevices = devices.filter(device => device.kind === 'videoinput');
+                setDevices(videoDevices);
+
+                // Set default camera if none selected
+                if (!selectedCamera && videoDevices.length > 0) {
+                    setSelectedCamera(videoDevices[0].deviceId);
+                }
+            } catch (error) {
+                console.error('Failed to get devices:', error);
+            }
+        };
+
+        navigator.mediaDevices.addEventListener('devicechange', getDevices);
+        getDevices();
+
+        return () => {
+            navigator.mediaDevices.removeEventListener('devicechange', getDevices);
+        };
+    }, []);
+
+    // Add a function to switch camera
+    const switchCamera = async (deviceId: string) => {
+        setSelectedCamera(deviceId);
+        if (localStream) {
+            // Stop current tracks
+            localStream.getVideoTracks().forEach(track => track.stop());
+
+            try {
+                // Get new stream with selected camera
+                const newStream = await navigator.mediaDevices.getUserMedia({
+                    video: { deviceId },
+                    audio: false
+                });
+
+                // Replace video track
+                const newVideoTrack = newStream.getVideoTracks()[0];
+                const oldVideoTrack = localStream.getVideoTracks()[0];
+                localStream.removeTrack(oldVideoTrack);
+                localStream.addTrack(newVideoTrack);
+
+                // Update local video
+                if (localVideoRef.current) {
+                    localVideoRef.current.srcObject = localStream;
+                }
+
+                // Update remote stream if in call
+                if (currentCall) {
+                    const sender = currentCall.peerConnection?.getSenders()
+                        .find(sender => sender.track?.kind === 'video');
+                    if (sender) {
+                        sender.replaceTrack(newVideoTrack);
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to switch camera:', error);
+                setError('Failed to switch camera');
+            }
+        }
+    };
+
+    // Update the CameraSelector component
+    function CameraSelector() {
+        return (
+            <div className="relative">
+                <button
+                    className="p-4 rounded-full bg-gray-800 hover:bg-gray-700 text-white transition-colors"
+                    title="Switch Camera"
+                    onClick={() => setIsCameraSelectorOpen(!isCameraSelectorOpen)}
+                >
+                    <SwitchCameraIcon />
+                </button>
+                {isCameraSelectorOpen && (
+                    <>
+                        {/* Backdrop to close selector when clicking outside */}
+                        <div
+                            className="fixed inset-0 z-10"
+                            onClick={() => setIsCameraSelectorOpen(false)}
+                        />
+                        <div className="absolute bottom-full mb-2 z-20 min-w-[200px] bg-gray-800 rounded-lg shadow-lg overflow-hidden">
+                            {devices.map(device => (
+                                <button
+                                    key={device.deviceId}
+                                    onClick={() => {
+                                        switchCamera(device.deviceId);
+                                        setIsCameraSelectorOpen(false);
+                                    }}
+                                    className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-700 ${selectedCamera === device.deviceId ? 'bg-gray-700' : ''
+                                        }`}
+                                >
+                                    {device.label || `Camera ${devices.indexOf(device) + 1}`}
+                                </button>
+                            ))}
+                        </div>
+                    </>
+                )}
+            </div>
+        );
+    }
+
+    // Add this icon component
+    function SwitchCameraIcon() {
+        return (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 4h-3.5L15 2H9L7.5 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2Z" />
+                <path d="M15 11v-1a3 3 0 0 0-6 0v1" />
+                <path d="M15 11a3 3 0 0 1-6 0" />
+            </svg>
+        );
+    }
+
     return (
         <Layout>
-            <div className="min-h-[calc(100vh-4rem)] grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
-                <div className="relative bg-gray-900 rounded-lg overflow-hidden">
-                    <video
-                        ref={localVideoRef}
-                        autoPlay
-                        playsInline
-                        muted
-                        className={`aspect-video w-full bg-gray-800 ${isVideoOff ? 'invisible' : 'visible'}`}
-                    />
-                    {isVideoOff && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
-                            <div className="text-gray-400">Camera Off</div>
-                        </div>
-                    )}
-                    <div className="absolute top-4 left-4 flex gap-2">
-                        {isMuted && (
-                            <div className="bg-red-500/80 text-white px-2 py-1 rounded-full text-sm flex items-center gap-1">
-                                <MicIcon muted />
-                                Muted
-                            </div>
-                        )}
-                        {isVideoOff && (
-                            <div className="bg-red-500/80 text-white px-2 py-1 rounded-full text-sm flex items-center gap-1">
-                                <CameraIcon disabled />
-                                Camera Off
-                            </div>
-                        )}
-                    </div>
-                    <div className="absolute bottom-4 right-4 flex gap-2">
-                        <button
-                            onClick={toggleMute}
-                            className={`p-2 rounded-full ${isMuted ? 'bg-red-500' : 'bg-gray-800'} hover:bg-gray-700 text-white transition-colors`}
-                            title={isMuted ? "Unmute" : "Mute"}
-                        >
-                            <MicIcon muted={isMuted} />
-                        </button>
-                        <button
-                            onClick={toggleVideo}
-                            className={`p-2 rounded-full ${isVideoOff ? 'bg-red-500' : 'bg-gray-800'} hover:bg-gray-700 text-white transition-colors`}
-                            title={isVideoOff ? "Turn Camera On" : "Turn Camera Off"}
-                        >
-                            <CameraIcon disabled={isVideoOff} />
-                        </button>
-                    </div>
-                </div>
-
-                <div className="relative bg-gray-900 rounded-lg overflow-hidden">
+            <div className="min-h-[calc(100vh-4rem)] bg-gray-900 relative">
+                {/* Main video container */}
+                <div className="h-[calc(100vh-4rem)] relative">
                     <video
                         ref={remoteVideoRef}
                         autoPlay
                         playsInline
-                        className={`aspect-video w-full bg-gray-800 ${remoteIsVideoOff ? 'invisible' : 'visible'}`}
+                        className={`w-full h-full object-cover ${remoteIsVideoOff ? 'invisible' : 'visible'}`}
                     />
                     {remoteIsVideoOff && (
                         <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
-                            <div className="text-gray-400">Camera Off</div>
+                            <div className="h-32 w-32 rounded-full bg-gray-700 flex items-center justify-center">
+                                <span className="text-4xl text-gray-400">
+                                    {partnerPeerId?.charAt(0)?.toUpperCase() || '?'}
+                                </span>
+                            </div>
                         </div>
                     )}
+
+                    {/* Local video pip */}
+                    <div className="absolute top-4 right-4 w-48 rounded-lg overflow-hidden shadow-lg">
+                        <video
+                            ref={localVideoRef}
+                            autoPlay
+                            playsInline
+                            muted
+                            className={`w-full aspect-video object-cover bg-gray-800 ${isVideoOff ? 'invisible' : 'visible'}`}
+                        />
+                        {isVideoOff && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
+                                <div className="h-12 w-12 rounded-full bg-gray-700 flex items-center justify-center">
+                                    <span className="text-xl text-gray-400">
+                                        {user?.email?.charAt(0)?.toUpperCase() || '?'}
+                                    </span>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Status indicators */}
                     <div className="absolute top-4 left-4 flex gap-2">
-                        <div className={`text-sm px-3 py-1 rounded-full ${error
-                            ? 'bg-red-500/80 text-white'
-                            : 'bg-black/50 text-white'
+                        <div className={`text-sm px-3 py-1 rounded-lg ${error
+                            ? 'bg-red-500/90 text-white'
+                            : 'bg-gray-900/90 text-white'
                             }`}>
                             {error || connectionStatus}
                         </div>
                         {remoteIsMuted && (
-                            <div className="bg-red-500/80 text-white px-2 py-1 rounded-full text-sm flex items-center gap-1">
+                            <div className="bg-gray-900/90 text-white px-3 py-1 rounded-lg text-sm flex items-center gap-1">
                                 <MicIcon muted />
                                 Muted
                             </div>
                         )}
-                        {remoteIsVideoOff && (
-                            <div className="bg-red-500/80 text-white px-2 py-1 rounded-full text-sm flex items-center gap-1">
-                                <CameraIcon disabled />
-                                Camera Off
-                            </div>
-                        )}
                     </div>
-                </div>
 
-                <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-white dark:bg-gray-800 px-6 py-3 rounded-full shadow-lg">
-                    <div className="text-xl font-semibold text-purple-600 dark:text-purple-400">
-                        {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
+                    {/* Control bar */}
+                    <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-black/70 to-transparent">
+                        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-4">
+                            <button
+                                onClick={toggleMute}
+                                className={`p-4 rounded-full ${isMuted
+                                    ? 'bg-red-500 hover:bg-red-600'
+                                    : 'bg-gray-800 hover:bg-gray-700'
+                                    } text-white transition-colors`}
+                                title={isMuted ? "Unmute" : "Mute"}
+                            >
+                                <MicIcon muted={isMuted} />
+                            </button>
+                            <button
+                                onClick={toggleVideo}
+                                className={`p-4 rounded-full ${isVideoOff
+                                    ? 'bg-red-500 hover:bg-red-600'
+                                    : 'bg-gray-800 hover:bg-gray-700'
+                                    } text-white transition-colors`}
+                                title={isVideoOff ? "Turn Camera On" : "Turn Camera Off"}
+                            >
+                                <CameraIcon disabled={isVideoOff} />
+                            </button>
+                            {devices.length > 1 && <CameraSelector />}
+                        </div>
+
+                        {/* Timer */}
+                        <div className="absolute bottom-6 right-4">
+                            <div className="text-white/90 font-medium">
+                                {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
