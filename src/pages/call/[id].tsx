@@ -23,6 +23,10 @@ export default function CallPage() {
     // Add state for partner's peer ID
     const [partnerPeerId, setPartnerPeerId] = useState<string | null>(null);
 
+    // Add state for remote user's media status
+    const [remoteIsMuted, setRemoteIsMuted] = useState(false);
+    const [remoteIsVideoOff, setRemoteIsVideoOff] = useState(false);
+
     const localVideoRef = useRef<HTMLVideoElement>(null);
     const remoteVideoRef = useRef<HTMLVideoElement>(null);
 
@@ -169,6 +173,19 @@ export default function CallPage() {
                 if (remoteVideoRef.current) {
                     remoteVideoRef.current.srcObject = remoteStream;
                     setConnectionStatus('Connected');
+
+                    // Track remote media status changes
+                    remoteStream.getAudioTracks().forEach(track => {
+                        track.onmute = () => setRemoteIsMuted(true);
+                        track.onunmute = () => setRemoteIsMuted(false);
+                        setRemoteIsMuted(!track.enabled);
+                    });
+
+                    remoteStream.getVideoTracks().forEach(track => {
+                        track.onmute = () => setRemoteIsVideoOff(true);
+                        track.onunmute = () => setRemoteIsVideoOff(false);
+                        setRemoteIsVideoOff(!track.enabled);
+                    });
                 }
             });
 
@@ -302,20 +319,41 @@ export default function CallPage() {
                         autoPlay
                         playsInline
                         muted
-                        className="aspect-video w-full bg-gray-800"
+                        className={`aspect-video w-full bg-gray-800 ${isVideoOff ? 'invisible' : 'visible'}`}
                     />
+                    {isVideoOff && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
+                            <div className="text-gray-400">Camera Off</div>
+                        </div>
+                    )}
+                    <div className="absolute top-4 left-4 flex gap-2">
+                        {isMuted && (
+                            <div className="bg-red-500/80 text-white px-2 py-1 rounded-full text-sm flex items-center gap-1">
+                                <MicIcon muted />
+                                Muted
+                            </div>
+                        )}
+                        {isVideoOff && (
+                            <div className="bg-red-500/80 text-white px-2 py-1 rounded-full text-sm flex items-center gap-1">
+                                <CameraIcon disabled />
+                                Camera Off
+                            </div>
+                        )}
+                    </div>
                     <div className="absolute bottom-4 right-4 flex gap-2">
                         <button
                             onClick={toggleMute}
-                            className={`p-2 rounded-full ${isMuted ? 'bg-red-500' : 'bg-gray-800'} hover:bg-gray-700 text-white`}
+                            className={`p-2 rounded-full ${isMuted ? 'bg-red-500' : 'bg-gray-800'} hover:bg-gray-700 text-white transition-colors`}
+                            title={isMuted ? "Unmute" : "Mute"}
                         >
-                            <MicIcon />
+                            <MicIcon muted={isMuted} />
                         </button>
                         <button
                             onClick={toggleVideo}
-                            className={`p-2 rounded-full ${isVideoOff ? 'bg-red-500' : 'bg-gray-800'} hover:bg-gray-700 text-white`}
+                            className={`p-2 rounded-full ${isVideoOff ? 'bg-red-500' : 'bg-gray-800'} hover:bg-gray-700 text-white transition-colors`}
+                            title={isVideoOff ? "Turn Camera On" : "Turn Camera Off"}
                         >
-                            <CameraIcon />
+                            <CameraIcon disabled={isVideoOff} />
                         </button>
                     </div>
                 </div>
@@ -325,10 +363,29 @@ export default function CallPage() {
                         ref={remoteVideoRef}
                         autoPlay
                         playsInline
-                        className="aspect-video w-full bg-gray-800"
+                        className={`aspect-video w-full bg-gray-800 ${remoteIsVideoOff ? 'invisible' : 'visible'}`}
                     />
-                    <div className="absolute top-4 left-4 text-sm text-white bg-black/50 px-3 py-1 rounded-full">
-                        {connectionStatus}
+                    {remoteIsVideoOff && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
+                            <div className="text-gray-400">Camera Off</div>
+                        </div>
+                    )}
+                    <div className="absolute top-4 left-4 flex gap-2">
+                        <div className="text-sm text-white bg-black/50 px-3 py-1 rounded-full">
+                            {connectionStatus}
+                        </div>
+                        {remoteIsMuted && (
+                            <div className="bg-red-500/80 text-white px-2 py-1 rounded-full text-sm flex items-center gap-1">
+                                <MicIcon muted />
+                                Muted
+                            </div>
+                        )}
+                        {remoteIsVideoOff && (
+                            <div className="bg-red-500/80 text-white px-2 py-1 rounded-full text-sm flex items-center gap-1">
+                                <CameraIcon disabled />
+                                Camera Off
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -342,14 +399,44 @@ export default function CallPage() {
     );
 }
 
-const MicIcon = () => (
-    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-    </svg>
-);
+function MicIcon({ muted = false }: { muted?: boolean }) {
+    return (
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            {muted ? (
+                <>
+                    <line x1="1" y1="1" x2="23" y2="23" />
+                    <path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6" />
+                    <path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23" />
+                    <line x1="12" y1="19" x2="12" y2="23" />
+                    <line x1="8" y1="23" x2="16" y2="23" />
+                </>
+            ) : (
+                <>
+                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                    <line x1="12" y1="19" x2="12" y2="23" />
+                    <line x1="8" y1="23" x2="16" y2="23" />
+                </>
+            )}
+        </svg>
+    );
+}
 
-const CameraIcon = () => (
-    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-    </svg>
-); 
+function CameraIcon({ disabled = false }: { disabled?: boolean }) {
+    return (
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            {disabled ? (
+                <>
+                    <line x1="1" y1="1" x2="23" y2="23" />
+                    <path d="M15 7h4a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-4" />
+                    <path d="M10.66 5H7a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h3.34" />
+                </>
+            ) : (
+                <>
+                    <path d="M23 7l-7 5 7 5V7z" />
+                    <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+                </>
+            )}
+        </svg>
+    );
+} 
