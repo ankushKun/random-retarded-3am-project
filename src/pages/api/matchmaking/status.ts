@@ -29,6 +29,7 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
                         sessionId: userData.activeSession,
                         partnerId: sessionData.participants.find((p: string) => p !== req.user.uid),
                         timeLeft: Math.max(0, timeLeft),
+                        peerIds: sessionData.peerIds || {}
                     });
                 }
             }

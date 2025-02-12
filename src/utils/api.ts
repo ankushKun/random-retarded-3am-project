@@ -46,4 +46,16 @@ export async function cancelMatchmaking() {
         headers: await getAuthHeader(),
     });
     return res.json();
+}
+
+export async function updatePeerId(sessionId: string, peerId: string | null) {
+    console.log('Sending update peer ID request:', { sessionId, peerId });
+    const res = await fetch('/api/sessions/update-peer', {
+        method: 'POST',
+        headers: await getAuthHeader(),
+        body: JSON.stringify({ sessionId, peerId })
+    });
+    const data = await res.json();
+    console.log('Update peer ID response:', data);
+    return data;
 } 

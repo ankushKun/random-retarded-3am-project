@@ -1,11 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '../../components/Layout';
-import { getMatchmakingStatus } from '../../utils/api';
+import { getMatchmakingStatus, updatePeerId } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
 import Peer, { MediaConnection } from 'peerjs';
-import { db } from '../../config/firebase';
-import { doc, updateDoc, getDoc } from 'firebase/firestore';
 
 export default function CallPage() {
     const router = useRouter();
@@ -69,29 +67,23 @@ export default function CallPage() {
                 setConnectionStatus('Connected to server');
 
                 try {
-                    console.log('Storing peer ID in Firestore...');
-                    await updateDoc(doc(db, 'sessions', sessionId as string), {
-                        [`peerIds.${user.uid}`]: myPeerId
-                    });
+                    console.log('Storing peer ID via API...');
+                    await updatePeerId(sessionId as string, myPeerId);
                     console.log('Successfully stored peer ID');
 
                     const checkPartnerPeerId = async () => {
                         console.log('Checking for partner peer ID...');
-                        const sessionDoc = await getDoc(doc(db, 'sessions', sessionId as string));
-                        const sessionData = sessionDoc.data();
-                        console.log('Session data:', sessionData);
+                        const status = await getMatchmakingStatus();
+                        console.log('Status response:', status);
 
-                        const peerIds = sessionData?.peerIds || {};
-                        const partnerId = sessionData?.participants.find((p: string) => p !== user.uid);
-                        console.log('Found partner info:', { partnerId, peerIds });
+                        if (status.partnerId && status.peerIds?.[status.partnerId]) {
+                            const partnerPeerId = status.peerIds[status.partnerId];
+                            console.log('Partner peer ID found:', partnerPeerId);
+                            setPartnerPeerId(partnerPeerId);
 
-                        if (partnerId && peerIds[partnerId]) {
-                            console.log('Partner peer ID found:', peerIds[partnerId]);
-                            setPartnerPeerId(peerIds[partnerId]);
-
-                            if (user.uid < partnerId && !currentCall) {
+                            if (user.uid < status.partnerId && !currentCall) {
                                 console.log('We should initiate the call');
-                                startCall(peerIds[partnerId]);
+                                startCall(partnerPeerId);
                             } else {
                                 console.log('Waiting for partner to initiate call');
                             }
@@ -141,10 +133,10 @@ export default function CallPage() {
             console.log('Component unmounting, cleaning up...');
             cleanupMedia();
             if (sessionId && user) {
-                console.log('Removing peer ID from session');
-                updateDoc(doc(db, 'sessions', sessionId as string), {
-                    [`peerIds.${user.uid}`]: null
-                }).catch(error => console.error('Failed to remove peer ID:', error));
+                console.log('Removing peer ID via API');
+                updatePeerId(sessionId, null).catch(error =>
+                    console.error('Failed to remove peer ID:', error)
+                );
             }
         };
     }, [user, sessionId]);
