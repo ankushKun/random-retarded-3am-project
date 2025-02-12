@@ -1,7 +1,7 @@
 import { NextApiResponse } from 'next';
 import { AuthenticatedRequest, authMiddleware } from '../../../middleware/authMiddleware';
 import { db } from '../../../config/firebase-admin';
-import { Timestamp } from 'firebase-admin/firestore';
+import { Timestamp, FieldValue } from 'firebase-admin/firestore';
 
 export default async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     if (req.method !== 'POST') {
@@ -10,64 +10,122 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
 
     await authMiddleware(req, res, async () => {
         try {
-            // Get users in queue
-            const queueSnapshot = await db.collection('matchmaking_queue')
-                .where('status', '==', 'waiting')
-                .orderBy('joinedAt')
-                .limit(2)
-                .get();
+            // Use a transaction to ensure atomic operations
+            const result = await db.runTransaction(async (transaction) => {
+                // Get users in queue
+                const queueSnapshot = await transaction.get(
+                    db.collection('matchmaking_queue')
+                        .where('status', '==', 'waiting')
+                        .orderBy('joinedAt')
+                        .limit(2)
+                );
 
-            if (queueSnapshot.size < 2) {
-                return res.status(200).json({ message: 'Not enough users in queue' });
-            }
-
-            const users = queueSnapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            }));
-
-            // Create a new session
-            const sessionRef = await db.collection('sessions').add({
-                participants: users.map(u => u.id),
-                startTime: Timestamp.now(),
-                endTime: Timestamp.fromMillis(Date.now() + 60 * 60 * 1000), // 1 hour
-                status: 'active'
-            });
-
-            // Update users' status
-            const batch = db.batch();
-
-            // For each user, ensure their document exists before updating
-            for (const user of users) {
-                const userRef = db.collection('users').doc(user.id);
-                const userDoc = await userRef.get();
-
-                if (!userDoc.exists) {
-                    // Create user document if it doesn't exist
-                    batch.set(userRef, {
-                        activeSession: sessionRef.id,
-                        createdAt: Timestamp.now(),
-                    });
-                } else {
-                    batch.update(userRef, {
-                        activeSession: sessionRef.id
-                    });
+                if (queueSnapshot.size < 2) {
+                    return { status: 'not_enough_users' };
                 }
 
-                // Remove from queue
-                batch.delete(db.collection('matchmaking_queue').doc(user.id));
-            }
+                const users = queueSnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
 
-            await batch.commit();
+                // Check if any of these users are already in a session
+                const userDocs = await Promise.all(
+                    users.map(user =>
+                        transaction.get(db.collection('users').doc(user.id))
+                    )
+                );
 
-            res.status(200).json({
-                message: 'Match created successfully',
-                sessionId: sessionRef.id,
-                participants: users.map(u => u.id)
+                // If any user already has an active session, abort
+                if (userDocs.some(doc => doc.exists && doc.data()?.activeSession)) {
+                    return { status: 'users_already_matched' };
+                }
+
+                // Create a lock document to prevent race conditions
+                const lockId = users.map(u => u.id).sort().join('-');
+                const lockRef = db.collection('matching_locks').doc(lockId);
+                const lockDoc = await transaction.get(lockRef);
+
+                if (lockDoc.exists) {
+                    return { status: 'match_in_progress' };
+                }
+
+                // Set the lock with expiration
+                transaction.set(lockRef, {
+                    createdAt: FieldValue.serverTimestamp(),
+                    expiresAt: Timestamp.fromMillis(Date.now() + 10000) // 10 seconds lock
+                });
+
+                // Create a new session
+                const sessionRef = db.collection('sessions').doc();
+                transaction.set(sessionRef, {
+                    participants: users.map(u => u.id),
+                    startTime: FieldValue.serverTimestamp(),
+                    endTime: Timestamp.fromMillis(Date.now() + 60 * 60 * 1000), // 1 hour
+                    status: 'active'
+                });
+
+                // Update users' status
+                for (const user of users) {
+                    const userRef = db.collection('users').doc(user.id);
+
+                    if (!userDocs.find(doc => doc.id === user.id)?.exists) {
+                        transaction.set(userRef, {
+                            activeSession: sessionRef.id,
+                            createdAt: FieldValue.serverTimestamp(),
+                        });
+                    } else {
+                        transaction.update(userRef, {
+                            activeSession: sessionRef.id
+                        });
+                    }
+
+                    // Remove from queue
+                    transaction.delete(db.collection('matchmaking_queue').doc(user.id));
+                }
+
+                return {
+                    status: 'success',
+                    sessionId: sessionRef.id,
+                    participants: users.map(u => u.id)
+                };
             });
+
+            // Clean up expired locks periodically
+            cleanupExpiredLocks();
+
+            if (result.status === 'success') {
+                res.status(200).json(result);
+            } else if (result.status === 'not_enough_users') {
+                res.status(200).json({ message: 'Not enough users in queue' });
+            } else if (result.status === 'users_already_matched') {
+                res.status(200).json({ message: 'Users already matched' });
+            } else {
+                res.status(200).json({ message: 'Match in progress' });
+            }
         } catch (error) {
             console.error('Matching error:', error);
             res.status(500).json({ error: 'Internal server error' });
         }
     });
+}
+
+async function cleanupExpiredLocks() {
+    try {
+        const now = Timestamp.now();
+        const expiredLocks = await db.collection('matching_locks')
+            .where('expiresAt', '<', now)
+            .get();
+
+        const batch = db.batch();
+        expiredLocks.docs.forEach(doc => {
+            batch.delete(doc.ref);
+        });
+
+        if (expiredLocks.size > 0) {
+            await batch.commit();
+        }
+    } catch (error) {
+        console.error('Error cleaning up locks:', error);
+    }
 } 

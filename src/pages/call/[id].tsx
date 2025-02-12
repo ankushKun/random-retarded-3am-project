@@ -28,29 +28,62 @@ export default function CallPage() {
         if (!user || !sessionId) return;
 
         const initializePeer = () => {
-            const newPeer = new Peer(`${sessionId}-${user.uid}`, {
+            // Generate a random suffix to ensure uniqueness
+            const randomSuffix = Math.random().toString(36).substring(2, 15);
+            const peerId = `${sessionId}-${user.uid}-${randomSuffix}`;
+
+            const newPeer = new Peer(peerId, {
                 host: '0.peerjs.com',
                 port: 443,
                 path: '/',
                 secure: true,
+                debug: 3, // Add debug level for more detailed logs
+                config: { // Add STUN/TURN servers for better connectivity
+                    iceServers: [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:global.stun.twilio.com:3478' }
+                    ]
+                }
             });
 
             newPeer.on('open', async () => {
                 setPeer(newPeer);
                 setConnectionStatus('Connected to server');
 
-                // Get session data to find partner
-                const status = await getMatchmakingStatus();
-                if (status.partnerId) {
-                    // Start call with partner
-                    startCall(`${sessionId}-${status.partnerId}`);
+                try {
+                    // Get session data to find partner
+                    const status = await getMatchmakingStatus();
+                    if (status.partnerId && status.partnerId !== user.uid) {
+                        // Wait a short time to ensure both peers are ready
+                        setTimeout(() => {
+                            // The user with the smaller UID initiates the call
+                            if (user.uid < status.partnerId!) {
+                                startCall(`${sessionId}-${status.partnerId}-${randomSuffix}`);
+                            }
+                        }, 1000);
+                    }
+                } catch (error) {
+                    console.error('Failed to get partner info:', error);
+                    setError('Failed to connect with partner');
                 }
             });
 
             newPeer.on('call', handleIncomingCall);
+
             newPeer.on('error', (error) => {
                 console.error('Peer error:', error);
-                setError(`Connection error: ${error.type}`);
+                // Retry connection if error is due to ID being taken
+                if (error.type === 'unavailable-id') {
+                    console.log('Retrying with new peer ID...');
+                    initializePeer();
+                } else {
+                    setError(`Connection error: ${error.type}`);
+                }
+            });
+
+            newPeer.on('disconnected', () => {
+                setConnectionStatus('Disconnected - Attempting to reconnect...');
+                newPeer.reconnect();
             });
         };
 
