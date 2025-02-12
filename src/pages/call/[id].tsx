@@ -1,24 +1,75 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '../../components/Layout';
 import { getMatchmakingStatus } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
+import Peer, { MediaConnection } from 'peerjs';
 
 export default function CallPage() {
     const router = useRouter();
-    const { id } = router.query;
+    const { id: sessionId } = router.query;
     const { user } = useAuth();
     const [timeLeft, setTimeLeft] = useState(3600); // 1 hour in seconds
     const [error, setError] = useState<string | null>(null);
+    const [connectionStatus, setConnectionStatus] = useState('Initializing...');
 
+    // PeerJS states
+    const [peer, setPeer] = useState<Peer | null>(null);
+    const [currentCall, setCurrentCall] = useState<MediaConnection | null>(null);
+    const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+    const [isMuted, setIsMuted] = useState(false);
+    const [isVideoOff, setIsVideoOff] = useState(false);
+
+    const localVideoRef = useRef<HTMLVideoElement>(null);
+    const remoteVideoRef = useRef<HTMLVideoElement>(null);
+
+    // Initialize peer connection
     useEffect(() => {
-        if (!user || !id) return;
+        if (!user || !sessionId) return;
+
+        const initializePeer = () => {
+            const newPeer = new Peer(`${sessionId}-${user.uid}`, {
+                host: '0.peerjs.com',
+                port: 443,
+                path: '/',
+                secure: true,
+            });
+
+            newPeer.on('open', async () => {
+                setPeer(newPeer);
+                setConnectionStatus('Connected to server');
+
+                // Get session data to find partner
+                const status = await getMatchmakingStatus();
+                if (status.partnerId) {
+                    // Start call with partner
+                    startCall(`${sessionId}-${status.partnerId}`);
+                }
+            });
+
+            newPeer.on('call', handleIncomingCall);
+            newPeer.on('error', (error) => {
+                console.error('Peer error:', error);
+                setError(`Connection error: ${error.type}`);
+            });
+        };
+
+        initializePeer();
+
+        return () => {
+            cleanupMedia();
+        };
+    }, [user, sessionId]);
+
+    // Session timer and verification
+    useEffect(() => {
+        if (!user || !sessionId) return;
 
         const checkSession = async () => {
             try {
                 const status = await getMatchmakingStatus();
 
-                if (status.status !== 'in_session' || status.sessionId !== id) {
+                if (status.status !== 'in_session' || status.sessionId !== sessionId) {
                     router.push('/');
                     return;
                 }
@@ -33,23 +84,132 @@ export default function CallPage() {
         };
 
         const interval = setInterval(checkSession, 5000);
-        checkSession(); // Initial check
+        checkSession();
 
         return () => clearInterval(interval);
-    }, [id, user, router]);
+    }, [sessionId, user, router]);
 
+    // Timer effect
     useEffect(() => {
         if (timeLeft <= 0) {
-            router.push(`/chat/${id}`);
-        }
-    }, [timeLeft, id, router]);
-
-    useEffect(() => {
-        if (timeLeft > 0) {
+            cleanupMedia();
+            router.push(`/chat/${sessionId}`);
+        } else {
             const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
             return () => clearTimeout(timer);
         }
-    }, [timeLeft]);
+    }, [timeLeft, sessionId, router]);
+
+    const cleanupMedia = () => {
+        if (localStream) {
+            localStream.getTracks().forEach(track => track.stop());
+            setLocalStream(null);
+        }
+        if (currentCall) {
+            currentCall.close();
+            setCurrentCall(null);
+        }
+        if (localVideoRef.current) {
+            localVideoRef.current.srcObject = null;
+        }
+        if (remoteVideoRef.current) {
+            remoteVideoRef.current.srcObject = null;
+        }
+        if (peer) {
+            peer.destroy();
+        }
+    };
+
+    const handleIncomingCall = async (call: MediaConnection) => {
+        try {
+            setConnectionStatus('Incoming call...');
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: true,
+                audio: true
+            });
+
+            setLocalStream(stream);
+            if (localVideoRef.current) {
+                localVideoRef.current.srcObject = stream;
+            }
+
+            call.answer(stream);
+            setCurrentCall(call);
+
+            call.on('stream', (remoteStream) => {
+                if (remoteVideoRef.current) {
+                    remoteVideoRef.current.srcObject = remoteStream;
+                    setConnectionStatus('Connected');
+                }
+            });
+
+            call.on('close', () => {
+                setConnectionStatus('Call ended');
+                cleanupMedia();
+            });
+
+        } catch (err) {
+            console.error('Failed to get local stream:', err);
+            setError('Failed to access camera/microphone');
+        }
+    };
+
+    const startCall = async (targetPeerId: string) => {
+        if (!peer) {
+            setError('Connection not ready');
+            return;
+        }
+
+        try {
+            setConnectionStatus('Starting call...');
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: true,
+                audio: true
+            });
+
+            setLocalStream(stream);
+            if (localVideoRef.current) {
+                localVideoRef.current.srcObject = stream;
+            }
+
+            const call = peer.call(targetPeerId, stream);
+            setCurrentCall(call);
+
+            call.on('stream', (remoteStream) => {
+                if (remoteVideoRef.current) {
+                    remoteVideoRef.current.srcObject = remoteStream;
+                    setConnectionStatus('Connected');
+                }
+            });
+
+            call.on('close', () => {
+                setConnectionStatus('Call ended');
+                cleanupMedia();
+            });
+
+        } catch (err) {
+            console.error('Failed to start call:', err);
+            setError('Failed to start call');
+        }
+    };
+
+    const toggleMute = () => {
+        if (localStream) {
+            localStream.getAudioTracks().forEach(track => {
+                track.enabled = !track.enabled;
+            });
+            setIsMuted(!isMuted);
+        }
+    };
+
+    const toggleVideo = () => {
+        if (localStream) {
+            localStream.getVideoTracks().forEach(track => {
+                track.enabled = !track.enabled;
+            });
+            setIsVideoOff(!isVideoOff);
+        }
+    };
 
     if (error) {
         return (
@@ -67,21 +227,39 @@ export default function CallPage() {
         <Layout>
             <div className="min-h-[calc(100vh-4rem)] grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
                 <div className="relative bg-gray-900 rounded-lg overflow-hidden">
-                    {/* Local video */}
-                    <div className="aspect-video w-full bg-gray-800" />
+                    <video
+                        ref={localVideoRef}
+                        autoPlay
+                        playsInline
+                        muted
+                        className="aspect-video w-full bg-gray-800"
+                    />
                     <div className="absolute bottom-4 right-4 flex gap-2">
-                        <button className="p-2 rounded-full bg-gray-800 hover:bg-gray-700 text-white">
+                        <button
+                            onClick={toggleMute}
+                            className={`p-2 rounded-full ${isMuted ? 'bg-red-500' : 'bg-gray-800'} hover:bg-gray-700 text-white`}
+                        >
                             <MicIcon />
                         </button>
-                        <button className="p-2 rounded-full bg-gray-800 hover:bg-gray-700 text-white">
+                        <button
+                            onClick={toggleVideo}
+                            className={`p-2 rounded-full ${isVideoOff ? 'bg-red-500' : 'bg-gray-800'} hover:bg-gray-700 text-white`}
+                        >
                             <CameraIcon />
                         </button>
                     </div>
                 </div>
 
                 <div className="relative bg-gray-900 rounded-lg overflow-hidden">
-                    {/* Remote video */}
-                    <div className="aspect-video w-full bg-gray-800" />
+                    <video
+                        ref={remoteVideoRef}
+                        autoPlay
+                        playsInline
+                        className="aspect-video w-full bg-gray-800"
+                    />
+                    <div className="absolute top-4 left-4 text-sm text-white bg-black/50 px-3 py-1 rounded-full">
+                        {connectionStatus}
+                    </div>
                 </div>
 
                 <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-white dark:bg-gray-800 px-6 py-3 rounded-full shadow-lg">

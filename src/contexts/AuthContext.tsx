@@ -5,7 +5,8 @@ import {
     signOut,
     onAuthStateChanged
 } from 'firebase/auth';
-import { auth, googleProvider } from '../config/firebase';
+import { auth, googleProvider, db } from '../config/firebase';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 
 interface AuthContextType {
     user: User | null;
@@ -21,7 +22,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, (user) => {
+        const unsubscribe = onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                // Check if user document exists, if not create it
+                const userDocRef = doc(db, 'users', user.uid);
+                const userDoc = await getDoc(userDocRef);
+
+                if (!userDoc.exists()) {
+                    await setDoc(userDocRef, {
+                        email: user.email,
+                        displayName: user.displayName,
+                        photoURL: user.photoURL,
+                        createdAt: new Date(),
+                    });
+                }
+            }
             setUser(user);
             setLoading(false);
         });

@@ -36,12 +36,28 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
 
             // Update users' status
             const batch = db.batch();
-            users.forEach(user => {
+
+            // For each user, ensure their document exists before updating
+            for (const user of users) {
+                const userRef = db.collection('users').doc(user.id);
+                const userDoc = await userRef.get();
+
+                if (!userDoc.exists) {
+                    // Create user document if it doesn't exist
+                    batch.set(userRef, {
+                        activeSession: sessionRef.id,
+                        createdAt: Timestamp.now(),
+                    });
+                } else {
+                    batch.update(userRef, {
+                        activeSession: sessionRef.id
+                    });
+                }
+
+                // Remove from queue
                 batch.delete(db.collection('matchmaking_queue').doc(user.id));
-                batch.update(db.collection('users').doc(user.id), {
-                    activeSession: sessionRef.id
-                });
-            });
+            }
+
             await batch.commit();
 
             res.status(200).json({

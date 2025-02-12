@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import Layout from '../components/Layout';
 import { useRouter } from 'next/router';
-import { joinMatchmaking, getMatchmakingStatus } from '../utils/api';
+import { joinMatchmaking, getMatchmakingStatus, cancelMatchmaking, createMatch } from '../utils/api';
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -34,7 +34,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<MatchmakingStatus>({ status: 'idle' });
 
-  // Poll for status updates
+  // Poll for status updates and try to create matches
   useEffect(() => {
     if (!user) return;
 
@@ -42,6 +42,20 @@ export default function Home() {
       try {
         const statusData = await getMatchmakingStatus();
         setStatus(statusData);
+
+        // If we're in queue and there are at least 2 people, try to create a match
+        if (statusData.status === 'queued' && statusData.totalInQueue >= 2) {
+          try {
+            const matchResult = await createMatch();
+            if (matchResult.sessionId) {
+              router.push(`/call/${matchResult.sessionId}`);
+              return;
+            }
+          } catch (error) {
+            console.error('Match creation failed:', error);
+            // Don't show error to user as this is a background operation
+          }
+        }
 
         // Redirect to call page if matched
         if (statusData.status === 'in_session' && statusData.sessionId) {
@@ -72,6 +86,17 @@ export default function Home() {
       console.error('Failed to join matchmaking:', error);
       setError('Failed to join matchmaking');
       setIsSearching(false);
+    }
+  };
+
+  const cancelSearch = async () => {
+    try {
+      setError(null);
+      await cancelMatchmaking();
+      setIsSearching(false);
+    } catch (error) {
+      console.error('Failed to cancel matchmaking:', error);
+      setError('Failed to cancel matchmaking');
     }
   };
 
@@ -147,6 +172,12 @@ export default function Home() {
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
               Position: {status.queuePosition} of {status.totalInQueue} in queue
             </p>
+            <button
+              onClick={cancelSearch}
+              className="mt-6 px-6 py-2 text-sm bg-red-500 hover:bg-red-600 text-white rounded-full transition-colors"
+            >
+              Cancel
+            </button>
           </div>
         )}
 

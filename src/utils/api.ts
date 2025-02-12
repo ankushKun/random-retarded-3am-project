@@ -29,4 +29,12 @@ export async function createMatch() {
         headers: await getAuthHeader(),
     });
     return res.json();
+}
+
+export async function cancelMatchmaking() {
+    const res = await fetch('/api/matchmaking/cancel', {
+        method: 'POST',
+        headers: await getAuthHeader(),
+    });
+    return res.json();
 } 
