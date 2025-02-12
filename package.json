@@ -9,16 +9,20 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@firebase/auth": "^1.9.0",
+    "@firebase/firestore": "^4.7.8",
+    "firebase": "^11.3.1",
+    "firebase-admin": "^13.1.0",
+    "next": "14.2.20",
     "react": "^18",
-    "react-dom": "^18",
-    "next": "14.2.20"
+    "react-dom": "^18"
   },
   "devDependencies": {
-    "typescript": "^5",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "postcss": "^8",
-    "tailwindcss": "^3.4.1"
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5"
   }
 }
