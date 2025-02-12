@@ -134,7 +134,7 @@ export default function CallPage() {
             cleanupMedia();
             if (sessionId && user) {
                 console.log('Removing peer ID via API');
-                updatePeerId(sessionId, null).catch(error =>
+                updatePeerId(sessionId as string, null).catch(error =>
                     console.error('Failed to remove peer ID:', error)
                 );
             }
