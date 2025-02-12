@@ -22,15 +22,32 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
                 console.log('Session data:', sessionData);
 
                 if (sessionData) {
-                    const timeLeft = sessionData.endTime.toDate().getTime() - Date.now();
-                    console.log('Session time left:', timeLeft);
-                    return res.status(200).json({
-                        status: 'in_session',
-                        sessionId: userData.activeSession,
-                        partnerId: sessionData.participants.find((p: string) => p !== req.user.uid),
-                        timeLeft: Math.max(0, timeLeft),
-                        peerIds: sessionData.peerIds || {}
-                    });
+                    if (sessionData.status === 'cooldown') {
+                        const cooldownEnds = sessionData.cooldownEnds.toDate();
+                        if (Date.now() < cooldownEnds.getTime()) {
+                            return res.status(200).json({
+                                status: 'in_cooldown',
+                                sessionId: userData.activeSession,
+                                partnerId: sessionData.participants.find((p: string) => p !== req.user.uid),
+                                cooldownEnds: cooldownEnds
+                            });
+                        } else {
+                            // Cooldown ended, clear session
+                            await db.collection('users').doc(req.user.uid).update({
+                                activeSession: null
+                            });
+                        }
+                    } else {
+                        const timeLeft = sessionData.endTime.toDate().getTime() - Date.now();
+                        console.log('Session time left:', timeLeft);
+                        return res.status(200).json({
+                            status: 'in_session',
+                            sessionId: userData.activeSession,
+                            partnerId: sessionData.participants.find((p: string) => p !== req.user.uid),
+                            timeLeft: Math.max(0, timeLeft),
+                            peerIds: sessionData.peerIds || {}
+                        });
+                    }
                 }
             }
 

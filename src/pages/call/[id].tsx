@@ -4,6 +4,9 @@ import Layout from '../../components/Layout';
 import { getMatchmakingStatus, updatePeerId } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
 import Peer, { MediaConnection } from 'peerjs';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '../../config/firebase';
+import { Timestamp } from 'firebase/firestore';
 
 export default function CallPage() {
     const router = useRouter();
@@ -255,6 +258,16 @@ export default function CallPage() {
     useEffect(() => {
         if (timeLeft <= 0) {
             cleanupMedia();
+
+            // Update session with cooldown end time
+            if (sessionId) {
+                const sessionRef = doc(db, 'sessions', sessionId as string);
+                updateDoc(sessionRef, {
+                    status: 'cooldown',
+                    cooldownEnds: Timestamp.fromMillis(Date.now() + 30 * 60 * 1000) // 30 minutes
+                }).catch(console.error);
+            }
+
             router.push(`/chat/${sessionId}`);
         } else {
             const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);

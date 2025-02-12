@@ -20,8 +20,15 @@ service cloud.firestore {
       
       allow update: if request.auth != null && 
         resource.data.participants.hasAny([request.auth.uid]) &&
-        (!request.resource.data.diff(resource.data).affectedKeys()
-          .hasAny(['participants', 'startTime', 'endTime', 'status']));
+        (
+            // Allow message updates
+            (!request.resource.data.diff(resource.data).affectedKeys()
+                .hasAny(['participants', 'startTime', 'endTime'])) ||
+            // Allow status and cooldown updates
+            (request.resource.data.diff(resource.data).affectedKeys()
+                .hasAll(['status', 'cooldownEnds']) &&
+            request.resource.data.status == 'cooldown')
+        );
     }
 
     // User rules

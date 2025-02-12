@@ -19,6 +19,8 @@ export default function ChatPage() {
     const [message, setMessage] = useState('');
     const [messages, setMessages] = useState<Message[]>([]);
     const [partnerId, setPartnerId] = useState<string | null>(null);
+    const [cooldownEnds, setCooldownEnds] = useState<Date | null>(null);
+    const [timeLeft, setTimeLeft] = useState<number | null>(null);
 
     // Fetch session data and messages
     useEffect(() => {
@@ -38,11 +40,38 @@ export default function ChatPage() {
                     ...msg,
                     timestamp: msg.timestamp?.toDate()
                 })));
+
+                // Check cooldown
+                if (sessionData.cooldownEnds) {
+                    const cooldownEnd = sessionData.cooldownEnds.toDate();
+                    setCooldownEnds(cooldownEnd);
+                }
             }
         });
 
         return () => unsubscribe();
     }, [user, sessionId]);
+
+    // Add timer effect for cooldown
+    useEffect(() => {
+        if (!cooldownEnds) return;
+
+        const updateTimer = () => {
+            const now = new Date();
+            const remaining = Math.max(0, cooldownEnds.getTime() - now.getTime());
+            setTimeLeft(remaining);
+
+            if (remaining <= 0) {
+                // Redirect to home when cooldown ends
+                router.push('/');
+            }
+        };
+
+        const timer = setInterval(updateTimer, 1000);
+        updateTimer(); // Initial update
+
+        return () => clearInterval(timer);
+    }, [cooldownEnds, router]);
 
     const sendMessage = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -75,9 +104,24 @@ export default function ChatPage() {
         }).format(date);
     };
 
+    const formatCooldownTime = (ms: number) => {
+        const minutes = Math.floor(ms / 60000);
+        const seconds = Math.floor((ms % 60000) / 1000);
+        return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    };
+
     return (
         <Layout>
             <div className="max-w-2xl mx-auto min-h-[calc(100vh-4rem)] flex flex-col">
+                {/* Add cooldown timer at the top */}
+                {timeLeft && (
+                    <div className="bg-purple-600/10 dark:bg-purple-400/10 p-4 text-center">
+                        <p className="text-purple-600 dark:text-purple-400">
+                            Chat closes in {formatCooldownTime(timeLeft)}
+                        </p>
+                    </div>
+                )}
+
                 <div className="flex-1 p-4 overflow-y-auto space-y-4">
                     {messages.map((msg) => (
                         <div
