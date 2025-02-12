@@ -61,17 +61,40 @@ export default function CallPage() {
                 }
             });
 
+            // Set up media stream early
+            const setupMediaStream = async () => {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({
+                        video: true,
+                        audio: true
+                    });
+                    setLocalStream(stream);
+                    if (localVideoRef.current) {
+                        localVideoRef.current.srcObject = stream;
+                    }
+                    return stream;
+                } catch (err) {
+                    console.error('Failed to get local stream:', err);
+                    setError('Failed to access camera/microphone');
+                    return null;
+                }
+            };
+
             newPeer.on('open', async () => {
                 console.log('Peer connection opened:', myPeerId);
                 setPeer(newPeer);
                 setConnectionStatus('Connected to server');
+
+                // Set up local media stream
+                const stream = await setupMediaStream();
+                if (!stream) return;
 
                 try {
                     console.log('Storing peer ID via API...');
                     await updatePeerId(sessionId as string, myPeerId);
                     console.log('Successfully stored peer ID');
 
-                    const checkPartnerPeerId = async () => {
+                    const attemptConnection = async () => {
                         console.log('Checking for partner peer ID...');
                         const status = await getMatchmakingStatus();
                         console.log('Status response:', status);
@@ -81,32 +104,41 @@ export default function CallPage() {
                             console.log('Partner peer ID found:', partnerPeerId);
                             setPartnerPeerId(partnerPeerId);
 
-                            if (user.uid < status.partnerId && !currentCall) {
-                                console.log('We should initiate the call');
-                                startCall(partnerPeerId);
-                            } else {
-                                console.log('Waiting for partner to initiate call');
+                            // Both peers try to call each other, but only the first successful call will be established
+                            if (!currentCall) {
+                                try {
+                                    console.log('Attempting to initiate call to:', partnerPeerId);
+                                    const call = newPeer.call(partnerPeerId, stream);
+                                    setupCallHandlers(call);
+                                } catch (error) {
+                                    console.error('Call initiation failed:', error);
+                                }
                             }
                         } else {
                             console.log('No partner peer ID yet, retrying in 1s');
-                            setTimeout(checkPartnerPeerId, 1000);
+                            setTimeout(attemptConnection, 1000);
                         }
                     };
 
-                    checkPartnerPeerId();
+                    attemptConnection();
                 } catch (error) {
                     console.error('Peer setup failed:', error);
                     setError('Failed to connect with partner');
                 }
             });
 
-            newPeer.on('connection', (conn) => {
-                console.log('New peer connection:', conn.peer);
-            });
+            newPeer.on('call', async (call) => {
+                console.log('Received incoming call from:', call.peer);
+                const stream = localStream || await setupMediaStream();
+                if (!stream) return;
 
-            newPeer.on('call', (call) => {
-                console.log('Received call from:', call.peer);
-                handleIncomingCall(call);
+                if (!currentCall) {
+                    console.log('Answering incoming call');
+                    call.answer(stream);
+                    setupCallHandlers(call);
+                } else {
+                    console.log('Already in a call, ignoring incoming call');
+                }
             });
 
             newPeer.on('error', (error) => {
@@ -124,11 +156,37 @@ export default function CallPage() {
                 setConnectionStatus('Disconnected - Attempting to reconnect...');
                 newPeer.reconnect();
             });
+
+            setPeer(newPeer);
+        };
+
+        const setupCallHandlers = (call: MediaConnection) => {
+            setCurrentCall(call);
+            setConnectionStatus('Call connecting...');
+
+            call.on('stream', (remoteStream) => {
+                console.log('Received remote stream');
+                if (remoteVideoRef.current) {
+                    remoteVideoRef.current.srcObject = remoteStream;
+                    setConnectionStatus('Connected');
+                }
+            });
+
+            call.on('error', (err) => {
+                console.error('Call error:', err);
+                setError('Call connection failed');
+                cleanupMedia();
+            });
+
+            call.on('close', () => {
+                console.log('Call closed');
+                setConnectionStatus('Call ended');
+                cleanupMedia();
+            });
         };
 
         initializePeer();
 
-        // Cleanup function
         return () => {
             console.log('Component unmounting, cleaning up...');
             cleanupMedia();
@@ -202,101 +260,6 @@ export default function CallPage() {
         }
         if (peer) {
             peer.destroy();
-        }
-    };
-
-    const handleIncomingCall = async (call: MediaConnection) => {
-        try {
-            console.log('Incoming call from:', call.peer);
-            setConnectionStatus('Incoming call...');
-
-            const stream = await navigator.mediaDevices.getUserMedia({
-                video: true,
-                audio: true
-            });
-
-            setLocalStream(stream);
-            if (localVideoRef.current) {
-                localVideoRef.current.srcObject = stream;
-            }
-
-            call.answer(stream);
-            setCurrentCall(call);
-
-            call.on('stream', (remoteStream) => {
-                console.log('Received remote stream');
-                if (remoteVideoRef.current) {
-                    remoteVideoRef.current.srcObject = remoteStream;
-                    setConnectionStatus('Connected');
-                }
-            });
-
-            call.on('error', (err) => {
-                console.error('Call error:', err);
-                setError('Call connection failed');
-                cleanupMedia();
-            });
-
-            call.on('close', () => {
-                console.log('Call closed');
-                setConnectionStatus('Call ended');
-                cleanupMedia();
-            });
-
-        } catch (err) {
-            console.error('Failed to get local stream:', err);
-            setError('Failed to access camera/microphone');
-            cleanupMedia();
-        }
-    };
-
-    const startCall = async (targetPeerId: string) => {
-        if (!peer) {
-            setError('Connection not ready');
-            return;
-        }
-
-        try {
-            setConnectionStatus('Starting call...');
-            console.log('Initiating call to:', targetPeerId);
-
-            const stream = await navigator.mediaDevices.getUserMedia({
-                video: true,
-                audio: true
-            });
-
-            setLocalStream(stream);
-            if (localVideoRef.current) {
-                localVideoRef.current.srcObject = stream;
-            }
-
-            const call = peer.call(targetPeerId, stream);
-            setCurrentCall(call);
-
-            call.on('stream', (remoteStream) => {
-                console.log('Received remote stream');
-                if (remoteVideoRef.current) {
-                    remoteVideoRef.current.srcObject = remoteStream;
-                    setConnectionStatus('Connected');
-                }
-            });
-
-            call.on('error', (err) => {
-                console.error('Call error:', err);
-                setError('Call connection failed');
-                cleanupMedia();
-            });
-
-            call.on('close', () => {
-                console.log('Call closed');
-                setConnectionStatus('Call ended');
-                cleanupMedia();
-            });
-
-        } catch (err) {
-            console.error('Failed to start call:', err);
-            setError('Failed to start call');
-            cleanupMedia();
         }
     };
 
