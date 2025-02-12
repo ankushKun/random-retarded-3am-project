@@ -1,8 +1,18 @@
-import { useState, useEffect } from 'react';
-import { User, signInWithPopup, signOut } from 'firebase/auth';
-import { auth, googleProvider } from '@/lib/firebase';
+import { createContext, useContext, useEffect, useState } from 'react';
+import { auth } from '@/lib/firebase';
+import { User } from 'firebase/auth';
+import { signInWithPopup, GoogleAuthProvider, signOut as firebaseSignOut } from 'firebase/auth';
 
-export function useAuth() {
+interface AuthContextType {
+    user: User | null;
+    loading: boolean;
+    signInWithGoogle: () => Promise<void>;
+    signOut: () => Promise<void>;
+}
+
+const AuthContext = createContext<AuthContextType | null>(null);
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
 
@@ -16,25 +26,35 @@ export function useAuth() {
     }, []);
 
     const signInWithGoogle = async () => {
+        const provider = new GoogleAuthProvider();
         try {
-            await signInWithPopup(auth, googleProvider);
+            await signInWithPopup(auth, provider);
         } catch (error) {
             console.error('Error signing in with Google:', error);
+            throw error;
         }
     };
 
-    const signOutUser = async () => {
+    const signOut = async () => {
         try {
-            await signOut(auth);
+            await firebaseSignOut(auth);
         } catch (error) {
             console.error('Error signing out:', error);
+            throw error;
         }
     };
 
-    return {
-        user,
-        loading,
-        signInWithGoogle,
-        signOut: signOutUser
-    };
+    return (
+        <AuthContext.Provider value={{ user, loading, signInWithGoogle, signOut }}>
+            {children}
+        </AuthContext.Provider>
+    );
+}
+
+export function useAuth() {
+    const context = useContext(AuthContext);
+    if (!context) {
+        throw new Error('useAuth must be used within an AuthProvider');
+    }
+    return context;
 } 

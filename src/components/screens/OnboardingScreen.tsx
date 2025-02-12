@@ -1,161 +1,65 @@
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { saveUserProfile } from '@/lib/firebase-utils';
-import type { UserProfile } from '@/lib/types';
+import { db } from '@/lib/firebase';
+import { doc, setDoc } from 'firebase/firestore';
 
-type UserDetails = Omit<UserProfile, 'createdAt'>;
+interface OnboardingScreenProps {
+    onComplete: () => void;
+}
 
-export default function OnboardingScreen({ onComplete }: { onComplete: () => void }) {
+export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
     const { user } = useAuth();
-    const [step, setStep] = useState(1);
-    const [userDetails, setUserDetails] = useState<UserDetails>({
-        displayName: user?.displayName || '',
-        gender: '',
-        birthDate: '',
-        location: '',
-        bio: '',
-        interests: [],
-    });
+    const [bio, setBio] = useState('');
+    const [interests, setInterests] = useState<string[]>([]);
+    const [loading, setLoading] = useState(false);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!user?.uid) return;
+        if (!user) return;
 
+        setLoading(true);
         try {
-            const success = await saveUserProfile(user.uid, userDetails);
-            if (success) {
-                onComplete();
-            } else {
-                alert('Failed to save profile. Please try again.');
-            }
+            await setDoc(doc(db, 'users', user.uid), {
+                displayName: user.displayName,
+                email: user.email,
+                photoURL: user.photoURL,
+                bio,
+                interests,
+                createdAt: new Date()
+            });
+            onComplete();
         } catch (error) {
             console.error('Error saving profile:', error);
-            alert('An error occurred. Please try again.');
+        } finally {
+            setLoading(false);
         }
     };
 
-    const renderStep1 = () => (
-        <div className="space-y-6">
-            <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Display Name
-                </label>
-                <input
-                    type="text"
-                    value={userDetails.displayName}
-                    onChange={(e) => setUserDetails({ ...userDetails, displayName: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                    required
-                />
-            </div>
-            <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Gender
-                </label>
-                <select
-                    value={userDetails.gender}
-                    onChange={(e) => setUserDetails({ ...userDetails, gender: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                    required
-                >
-                    <option value="">Select gender</option>
-                    <option value="male">Male</option>
-                    <option value="female">Female</option>
-                    <option value="other">Other</option>
-                </select>
-            </div>
-            <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Birth Date
-                </label>
-                <input
-                    type="date"
-                    value={userDetails.birthDate}
-                    onChange={(e) => setUserDetails({ ...userDetails, birthDate: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                    required
-                />
-            </div>
-            <button
-                onClick={() => setStep(2)}
-                className="w-full bg-rose-500 text-white py-2 rounded-md hover:bg-rose-600"
-            >
-                Next
-            </button>
-        </div>
-    );
-
-    const renderStep2 = () => (
-        <div className="space-y-6">
-            <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Location
-                </label>
-                <input
-                    type="text"
-                    value={userDetails.location}
-                    onChange={(e) => setUserDetails({ ...userDetails, location: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                    placeholder="City, Country"
-                    required
-                />
-            </div>
-            <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Bio
-                </label>
-                <textarea
-                    value={userDetails.bio}
-                    onChange={(e) => setUserDetails({ ...userDetails, bio: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                    rows={4}
-                    placeholder="Tell us about yourself..."
-                    required
-                />
-            </div>
-            <div className="flex gap-3">
-                <button
-                    onClick={() => setStep(1)}
-                    className="w-full bg-gray-100 text-gray-700 py-2 rounded-md hover:bg-gray-200"
-                >
-                    Back
-                </button>
-                <button
-                    onClick={handleSubmit}
-                    className="w-full bg-rose-500 text-white py-2 rounded-md hover:bg-rose-600"
-                >
-                    Complete Profile
-                </button>
-            </div>
-        </div>
-    );
-
     return (
-        <div className="min-h-screen bg-gray-50 p-4">
+        <div className="min-h-screen bg-gray-50 py-12 px-4">
             <div className="max-w-md mx-auto">
-                <div className="bg-white rounded-xl shadow-lg p-6">
-                    <div className="text-center mb-8">
-                        <h1 className="text-2xl font-bold text-gray-900">Complete Your Profile</h1>
-                        <p className="text-gray-500 mt-2">Tell us more about yourself</p>
+                <h1 className="text-2xl font-bold text-center mb-8">Complete Your Profile</h1>
+                <form onSubmit={handleSubmit} className="space-y-6">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700">
+                            About You
+                        </label>
+                        <textarea
+                            value={bio}
+                            onChange={(e) => setBio(e.target.value)}
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-pink-500 focus:ring-pink-500"
+                            rows={4}
+                            required
+                        />
                     </div>
-
-                    {/* Progress indicator */}
-                    <div className="flex justify-center mb-8">
-                        <div className="flex items-center">
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${step >= 1 ? 'bg-rose-500 text-white' : 'bg-gray-200'
-                                }`}>
-                                1
-                            </div>
-                            <div className={`w-16 h-1 ${step >= 2 ? 'bg-rose-500' : 'bg-gray-200'}`} />
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${step >= 2 ? 'bg-rose-500 text-white' : 'bg-gray-200'
-                                }`}>
-                                2
-                            </div>
-                        </div>
-                    </div>
-
-                    {step === 1 ? renderStep1() : renderStep2()}
-                </div>
+                    <button
+                        type="submit"
+                        disabled={loading}
+                        className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-pink-600 hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 disabled:opacity-50"
+                    >
+                        {loading ? 'Saving...' : 'Complete Profile'}
+                    </button>
+                </form>
             </div>
         </div>
     );

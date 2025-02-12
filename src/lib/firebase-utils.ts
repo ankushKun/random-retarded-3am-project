@@ -6,7 +6,7 @@ export async function getUserProfile(userId: string) {
     try {
         const userDoc = await getDoc(doc(db, 'users', userId));
         if (userDoc.exists()) {
-            return userDoc.data() as UserProfile;
+            return userDoc.data();
         }
         return null;
     } catch (error) {
