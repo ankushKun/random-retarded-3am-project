@@ -1,0 +1,39 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Chat messages rules
+    match /chats/{messageId} {
+      allow read: if request.auth != null && 
+        exists(/databases/$(database)/documents/sessions/$(resource.data.sessionId)) &&
+        get(/databases/$(database)/documents/sessions/$(resource.data.sessionId)).data.participants.hasAny([request.auth.uid]);
+      
+      allow create: if request.auth != null && 
+        exists(/databases/$(database)/documents/sessions/$(request.resource.data.sessionId)) &&
+        get(/databases/$(database)/documents/sessions/$(request.resource.data.sessionId)).data.participants.hasAny([request.auth.uid]) &&
+        request.resource.data.senderId == request.auth.uid;
+    }
+
+    // Session rules
+    match /sessions/{sessionId} {
+      allow read: if request.auth != null && 
+        resource.data.participants.hasAny([request.auth.uid]);
+      
+      allow update: if request.auth != null && 
+        resource.data.participants.hasAny([request.auth.uid]) &&
+        (!request.resource.data.diff(resource.data).affectedKeys()
+          .hasAny(['participants', 'startTime', 'endTime', 'status']));
+    }
+
+    // User rules
+    match /users/{userId} {
+      allow read: if request.auth != null && 
+        (request.auth.uid == userId || 
+        exists(request.auth.uid));
+    }
+
+    // Queue rules
+    match /matchmaking_queue/{userId} {
+      allow read: if request.auth != null;
+    }
+  }
+} 

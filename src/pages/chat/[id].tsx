@@ -1,39 +1,104 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '../../components/Layout';
-import Image from 'next/image';
+import { useAuth } from '../../contexts/AuthContext';
+import { db } from '../../config/firebase';
+import { doc, updateDoc, onSnapshot, arrayUnion, Timestamp } from 'firebase/firestore';
+
+interface Message {
+    id: string;
+    text: string;
+    senderId: string;
+    timestamp: Date;
+}
 
 export default function ChatPage() {
+    const router = useRouter();
+    const { id: sessionId } = router.query;
+    const { user } = useAuth();
     const [message, setMessage] = useState('');
-    const [messages, setMessages] = useState([
-        { id: 1, text: 'Hey there!', sender: 'them' },
-        { id: 2, text: 'Hi! That was a great conversation!', sender: 'me' },
-    ]);
+    const [messages, setMessages] = useState<Message[]>([]);
+    const [partnerId, setPartnerId] = useState<string | null>(null);
 
-    const sendMessage = (e: React.FormEvent) => {
+    // Fetch session data and messages
+    useEffect(() => {
+        if (!user || !sessionId) return;
+
+        const sessionRef = doc(db, 'sessions', sessionId as string);
+        const unsubscribe = onSnapshot(sessionRef, (doc) => {
+            if (doc.exists()) {
+                const sessionData = doc.data();
+                // Set partner ID
+                const partner = sessionData.participants.find((p: string) => p !== user.uid);
+                setPartnerId(partner);
+
+                // Set messages
+                const sessionMessages = sessionData.messages || [];
+                setMessages(sessionMessages.map((msg: any) => ({
+                    ...msg,
+                    timestamp: msg.timestamp?.toDate()
+                })));
+            }
+        });
+
+        return () => unsubscribe();
+    }, [user, sessionId]);
+
+    const sendMessage = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (message.trim()) {
-            setMessages([...messages, { id: Date.now(), text: message, sender: 'me' }]);
+        if (!message.trim() || !user || !sessionId) return;
+
+        try {
+            const newMessage = {
+                id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                text: message.trim(),
+                senderId: user.uid,
+                timestamp: Timestamp.now()
+            };
+
+            const sessionRef = doc(db, 'sessions', sessionId as string);
+            await updateDoc(sessionRef, {
+                messages: arrayUnion(newMessage)
+            });
+
             setMessage('');
+        } catch (error) {
+            console.error('Error sending message:', error);
         }
+    };
+
+    const formatTime = (date: Date) => {
+        return new Intl.DateTimeFormat('en-US', {
+            hour: 'numeric',
+            minute: 'numeric',
+            hour12: true
+        }).format(date);
     };
 
     return (
         <Layout>
             <div className="max-w-2xl mx-auto min-h-[calc(100vh-4rem)] flex flex-col">
-                <div className="flex-1 p-4 overflow-y-auto">
+                <div className="flex-1 p-4 overflow-y-auto space-y-4">
                     {messages.map((msg) => (
                         <div
                             key={msg.id}
-                            className={`flex ${msg.sender === 'me' ? 'justify-end' : 'justify-start'} mb-4`}
+                            className={`flex ${msg.senderId === user?.uid ? 'justify-end' : 'justify-start'}`}
                         >
                             <div
-                                className={`max-w-[80%] rounded-lg px-4 py-2 ${msg.sender === 'me'
-                                        ? 'bg-purple-600 text-white'
-                                        : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white'
+                                className={`max-w-[80%] rounded-lg px-4 py-2 ${msg.senderId === user?.uid
+                                    ? 'bg-purple-600 text-white'
+                                    : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white'
                                     }`}
                             >
-                                {msg.text}
+                                <div>{msg.text}</div>
+                                {msg.timestamp && (
+                                    <div className={`text-xs mt-1 ${msg.senderId === user?.uid
+                                        ? 'text-purple-200'
+                                        : 'text-gray-500 dark:text-gray-400'
+                                        }`}>
+                                        {formatTime(msg.timestamp)}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     ))}
@@ -50,7 +115,8 @@ export default function ChatPage() {
                         />
                         <button
                             type="submit"
-                            className="bg-purple-600 hover:bg-purple-700 text-white rounded-full p-2"
+                            className="bg-purple-600 hover:bg-purple-700 text-white rounded-full p-2 transition-colors"
+                            disabled={!message.trim()}
                         >
                             <SendIcon />
                         </button>
