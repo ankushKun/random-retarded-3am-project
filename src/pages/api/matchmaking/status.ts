@@ -9,17 +9,21 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
 
     await authMiddleware(req, res, async () => {
         try {
-            // Get user's current status
+            console.log('Checking status for user:', req.user.uid);
             const userDoc = await db.collection('users').doc(req.user.uid).get();
             const userData = userDoc.data();
+            console.log('User data:', userData);
 
             // Check active session
             if (userData?.activeSession) {
+                console.log('User has active session:', userData.activeSession);
                 const sessionDoc = await db.collection('sessions').doc(userData.activeSession).get();
                 const sessionData = sessionDoc.data();
+                console.log('Session data:', sessionData);
 
                 if (sessionData) {
                     const timeLeft = sessionData.endTime.toDate().getTime() - Date.now();
+                    console.log('Session time left:', timeLeft);
                     return res.status(200).json({
                         status: 'in_session',
                         sessionId: userData.activeSession,
@@ -47,6 +51,7 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
                 .count()
                 .get();
             const queueCount = queueSnapshot.data().count;
+            console.log('Current queue count:', queueCount);
 
             // Check queue status
             const queueDoc = await db.collection('matchmaking_queue').doc(req.user.uid).get();

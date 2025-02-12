@@ -28,14 +28,26 @@ export default function CallPage() {
     const localVideoRef = useRef<HTMLVideoElement>(null);
     const remoteVideoRef = useRef<HTMLVideoElement>(null);
 
+    // Add at the start of the component
+    useEffect(() => {
+        console.log('Component mounted with:', {
+            sessionId,
+            userId: user?.uid,
+            connectionStatus,
+            hasPeer: !!peer,
+            hasCurrentCall: !!currentCall
+        });
+    }, []);
+
     // Initialize peer connection
     useEffect(() => {
         if (!user || !sessionId) return;
 
         const initializePeer = () => {
-            // Generate a random suffix to ensure uniqueness
+            console.log('Initializing peer with session:', sessionId);
             const randomSuffix = Math.random().toString(36).substring(2, 15);
             const myPeerId = `${sessionId}-${user.uid}-${randomSuffix}`;
+            console.log('Generated peer ID:', myPeerId);
 
             const newPeer = new Peer(myPeerId, {
                 host: '0.peerjs.com',
@@ -52,48 +64,61 @@ export default function CallPage() {
             });
 
             newPeer.on('open', async () => {
+                console.log('Peer connection opened:', myPeerId);
                 setPeer(newPeer);
                 setConnectionStatus('Connected to server');
 
                 try {
-                    // Store my peer ID in Firestore
+                    console.log('Storing peer ID in Firestore...');
                     await updateDoc(doc(db, 'sessions', sessionId as string), {
                         [`peerIds.${user.uid}`]: myPeerId
                     });
+                    console.log('Successfully stored peer ID');
 
-                    // Get session data and check for partner's peer ID
                     const checkPartnerPeerId = async () => {
+                        console.log('Checking for partner peer ID...');
                         const sessionDoc = await getDoc(doc(db, 'sessions', sessionId as string));
                         const sessionData = sessionDoc.data();
-                        const peerIds = sessionData?.peerIds || {};
+                        console.log('Session data:', sessionData);
 
-                        // Get partner's ID from session participants
+                        const peerIds = sessionData?.peerIds || {};
                         const partnerId = sessionData?.participants.find((p: string) => p !== user.uid);
+                        console.log('Found partner info:', { partnerId, peerIds });
 
                         if (partnerId && peerIds[partnerId]) {
+                            console.log('Partner peer ID found:', peerIds[partnerId]);
                             setPartnerPeerId(peerIds[partnerId]);
 
-                            // If I'm the one with smaller UID, initiate the call
                             if (user.uid < partnerId && !currentCall) {
+                                console.log('We should initiate the call');
                                 startCall(peerIds[partnerId]);
+                            } else {
+                                console.log('Waiting for partner to initiate call');
                             }
                         } else {
-                            // If partner's peer ID not found, check again in 1 second
+                            console.log('No partner peer ID yet, retrying in 1s');
                             setTimeout(checkPartnerPeerId, 1000);
                         }
                     };
 
                     checkPartnerPeerId();
                 } catch (error) {
-                    console.error('Failed to setup peer connection:', error);
+                    console.error('Peer setup failed:', error);
                     setError('Failed to connect with partner');
                 }
             });
 
-            newPeer.on('call', handleIncomingCall);
+            newPeer.on('connection', (conn) => {
+                console.log('New peer connection:', conn.peer);
+            });
+
+            newPeer.on('call', (call) => {
+                console.log('Received call from:', call.peer);
+                handleIncomingCall(call);
+            });
 
             newPeer.on('error', (error) => {
-                console.error('Peer error:', error);
+                console.error('Peer error:', { type: error.type, message: error.message });
                 if (error.type === 'unavailable-id') {
                     console.log('Retrying with new peer ID...');
                     initializePeer();
@@ -103,6 +128,7 @@ export default function CallPage() {
             });
 
             newPeer.on('disconnected', () => {
+                console.log('Peer disconnected, attempting reconnect');
                 setConnectionStatus('Disconnected - Attempting to reconnect...');
                 newPeer.reconnect();
             });
@@ -112,12 +138,13 @@ export default function CallPage() {
 
         // Cleanup function
         return () => {
+            console.log('Component unmounting, cleaning up...');
             cleanupMedia();
-            // Remove peer ID from session when leaving
             if (sessionId && user) {
+                console.log('Removing peer ID from session');
                 updateDoc(doc(db, 'sessions', sessionId as string), {
                     [`peerIds.${user.uid}`]: null
-                }).catch(console.error);
+                }).catch(error => console.error('Failed to remove peer ID:', error));
             }
         };
     }, [user, sessionId]);
@@ -162,6 +189,11 @@ export default function CallPage() {
     }, [timeLeft, sessionId, router]);
 
     const cleanupMedia = () => {
+        console.log('Cleaning up media...', {
+            hasLocalStream: !!localStream,
+            hasCurrentCall: !!currentCall,
+            hasPeer: !!peer
+        });
         if (localStream) {
             localStream.getTracks().forEach(track => track.stop());
             setLocalStream(null);
@@ -183,7 +215,9 @@ export default function CallPage() {
 
     const handleIncomingCall = async (call: MediaConnection) => {
         try {
+            console.log('Incoming call from:', call.peer);
             setConnectionStatus('Incoming call...');
+
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: true,
                 audio: true
@@ -198,13 +232,21 @@ export default function CallPage() {
             setCurrentCall(call);
 
             call.on('stream', (remoteStream) => {
+                console.log('Received remote stream');
                 if (remoteVideoRef.current) {
                     remoteVideoRef.current.srcObject = remoteStream;
                     setConnectionStatus('Connected');
                 }
             });
 
+            call.on('error', (err) => {
+                console.error('Call error:', err);
+                setError('Call connection failed');
+                cleanupMedia();
+            });
+
             call.on('close', () => {
+                console.log('Call closed');
                 setConnectionStatus('Call ended');
                 cleanupMedia();
             });
@@ -212,6 +254,7 @@ export default function CallPage() {
         } catch (err) {
             console.error('Failed to get local stream:', err);
             setError('Failed to access camera/microphone');
+            cleanupMedia();
         }
     };
 
@@ -223,6 +266,8 @@ export default function CallPage() {
 
         try {
             setConnectionStatus('Starting call...');
+            console.log('Initiating call to:', targetPeerId);
+
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: true,
                 audio: true
@@ -237,13 +282,21 @@ export default function CallPage() {
             setCurrentCall(call);
 
             call.on('stream', (remoteStream) => {
+                console.log('Received remote stream');
                 if (remoteVideoRef.current) {
                     remoteVideoRef.current.srcObject = remoteStream;
                     setConnectionStatus('Connected');
                 }
             });
 
+            call.on('error', (err) => {
+                console.error('Call error:', err);
+                setError('Call connection failed');
+                cleanupMedia();
+            });
+
             call.on('close', () => {
+                console.log('Call closed');
                 setConnectionStatus('Call ended');
                 cleanupMedia();
             });
@@ -251,6 +304,7 @@ export default function CallPage() {
         } catch (err) {
             console.error('Failed to start call:', err);
             setError('Failed to start call');
+            cleanupMedia();
         }
     };
 

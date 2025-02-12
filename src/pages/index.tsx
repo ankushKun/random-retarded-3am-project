@@ -40,25 +40,28 @@ export default function Home() {
 
     const checkStatus = async () => {
       try {
+        console.log('Checking matchmaking status...');
         const statusData = await getMatchmakingStatus();
+        console.log('Status received:', statusData);
         setStatus(statusData);
 
-        // If we're in queue and there are at least 2 people, try to create a match
         if (statusData.status === 'queued' && statusData.totalInQueue >= 2) {
+          console.log('Attempting to create match with', statusData.totalInQueue, 'users in queue');
           try {
             const matchResult = await createMatch();
+            console.log('Match creation result:', matchResult);
             if (matchResult.sessionId) {
+              console.log('Match created, redirecting to call:', matchResult.sessionId);
               router.push(`/call/${matchResult.sessionId}`);
               return;
             }
           } catch (error) {
             console.error('Match creation failed:', error);
-            // Don't show error to user as this is a background operation
           }
         }
 
-        // Redirect to call page if matched
-        if (statusData.status === 'in_session' && statusData.sessionId) {
+        if (statusData.status === 'in_session') {
+          console.log('User in session, redirecting to:', statusData.sessionId);
           router.push(`/call/${statusData.sessionId}`);
         }
       } catch (error) {
@@ -73,12 +76,15 @@ export default function Home() {
   }, [user, router]);
 
   const startMatching = async () => {
+    console.log('Starting matchmaking process...');
     try {
       setError(null);
       setIsSearching(true);
       const response = await joinMatchmaking();
+      console.log('Join matchmaking response:', response);
 
       if (response.error) {
+        console.error('Join matchmaking error:', response.error);
         setError(response.error);
         setIsSearching(false);
       }

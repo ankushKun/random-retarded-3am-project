@@ -12,6 +12,8 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
         try {
             // Use a transaction to ensure atomic operations
             const result = await db.runTransaction(async (transaction) => {
+                console.log('Starting match transaction');
+
                 // Get users in queue
                 const queueSnapshot = await transaction.get(
                     db.collection('matchmaking_queue')
@@ -19,8 +21,10 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
                         .orderBy('joinedAt')
                         .limit(2)
                 );
+                console.log('Queue snapshot size:', queueSnapshot.size);
 
                 if (queueSnapshot.size < 2) {
+                    console.log('Not enough users in queue');
                     return { status: 'not_enough_users' };
                 }
 
@@ -28,6 +32,7 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
                     id: doc.id,
                     ...doc.data()
                 }));
+                console.log('Found users for matching:', users);
 
                 // Check if any of these users are already in a session
                 const userDocs = await Promise.all(
@@ -35,14 +40,17 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
                         transaction.get(db.collection('users').doc(user.id))
                     )
                 );
+                console.log('User docs retrieved:', userDocs.map(d => ({ id: d.id, exists: d.exists })));
 
                 // If any user already has an active session, abort
                 if (userDocs.some(doc => doc.exists && doc.data()?.activeSession)) {
+                    console.log('Users already in session, aborting');
                     return { status: 'users_already_matched' };
                 }
 
                 // Create a lock document to prevent race conditions
                 const lockId = users.map(u => u.id).sort().join('-');
+                console.log('Generated lock ID:', lockId);
                 const lockRef = db.collection('matching_locks').doc(lockId);
                 const lockDoc = await transaction.get(lockRef);
 
