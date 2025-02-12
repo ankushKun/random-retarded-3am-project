@@ -62,7 +62,8 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
                     participants: users.map(u => u.id),
                     startTime: FieldValue.serverTimestamp(),
                     endTime: Timestamp.fromMillis(Date.now() + 60 * 60 * 1000), // 1 hour
-                    status: 'active'
+                    status: 'active',
+                    peerIds: {} // Initialize empty peerIds object
                 });
 
                 // Update users' status

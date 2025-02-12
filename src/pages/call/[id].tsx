@@ -4,6 +4,8 @@ import Layout from '../../components/Layout';
 import { getMatchmakingStatus } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
 import Peer, { MediaConnection } from 'peerjs';
+import { db } from '../../config/firebase';
+import { doc, updateDoc, getDoc } from 'firebase/firestore';
 
 export default function CallPage() {
     const router = useRouter();
@@ -20,6 +22,9 @@ export default function CallPage() {
     const [isMuted, setIsMuted] = useState(false);
     const [isVideoOff, setIsVideoOff] = useState(false);
 
+    // Add state for partner's peer ID
+    const [partnerPeerId, setPartnerPeerId] = useState<string | null>(null);
+
     const localVideoRef = useRef<HTMLVideoElement>(null);
     const remoteVideoRef = useRef<HTMLVideoElement>(null);
 
@@ -30,15 +35,15 @@ export default function CallPage() {
         const initializePeer = () => {
             // Generate a random suffix to ensure uniqueness
             const randomSuffix = Math.random().toString(36).substring(2, 15);
-            const peerId = `${sessionId}-${user.uid}-${randomSuffix}`;
+            const myPeerId = `${sessionId}-${user.uid}-${randomSuffix}`;
 
-            const newPeer = new Peer(peerId, {
+            const newPeer = new Peer(myPeerId, {
                 host: '0.peerjs.com',
                 port: 443,
                 path: '/',
                 secure: true,
-                debug: 3, // Add debug level for more detailed logs
-                config: { // Add STUN/TURN servers for better connectivity
+                debug: 3,
+                config: {
                     iceServers: [
                         { urls: 'stun:stun.l.google.com:19302' },
                         { urls: 'stun:global.stun.twilio.com:3478' }
@@ -51,19 +56,36 @@ export default function CallPage() {
                 setConnectionStatus('Connected to server');
 
                 try {
-                    // Get session data to find partner
-                    const status = await getMatchmakingStatus();
-                    if (status.partnerId && status.partnerId !== user.uid) {
-                        // Wait a short time to ensure both peers are ready
-                        setTimeout(() => {
-                            // The user with the smaller UID initiates the call
-                            if (user.uid < status.partnerId!) {
-                                startCall(`${sessionId}-${status.partnerId}-${randomSuffix}`);
+                    // Store my peer ID in Firestore
+                    await updateDoc(doc(db, 'sessions', sessionId as string), {
+                        [`peerIds.${user.uid}`]: myPeerId
+                    });
+
+                    // Get session data and check for partner's peer ID
+                    const checkPartnerPeerId = async () => {
+                        const sessionDoc = await getDoc(doc(db, 'sessions', sessionId as string));
+                        const sessionData = sessionDoc.data();
+                        const peerIds = sessionData?.peerIds || {};
+
+                        // Get partner's ID from session participants
+                        const partnerId = sessionData?.participants.find((p: string) => p !== user.uid);
+
+                        if (partnerId && peerIds[partnerId]) {
+                            setPartnerPeerId(peerIds[partnerId]);
+
+                            // If I'm the one with smaller UID, initiate the call
+                            if (user.uid < partnerId && !currentCall) {
+                                startCall(peerIds[partnerId]);
                             }
-                        }, 1000);
-                    }
+                        } else {
+                            // If partner's peer ID not found, check again in 1 second
+                            setTimeout(checkPartnerPeerId, 1000);
+                        }
+                    };
+
+                    checkPartnerPeerId();
                 } catch (error) {
-                    console.error('Failed to get partner info:', error);
+                    console.error('Failed to setup peer connection:', error);
                     setError('Failed to connect with partner');
                 }
             });
@@ -72,7 +94,6 @@ export default function CallPage() {
 
             newPeer.on('error', (error) => {
                 console.error('Peer error:', error);
-                // Retry connection if error is due to ID being taken
                 if (error.type === 'unavailable-id') {
                     console.log('Retrying with new peer ID...');
                     initializePeer();
@@ -89,8 +110,15 @@ export default function CallPage() {
 
         initializePeer();
 
+        // Cleanup function
         return () => {
             cleanupMedia();
+            // Remove peer ID from session when leaving
+            if (sessionId && user) {
+                updateDoc(doc(db, 'sessions', sessionId as string), {
+                    [`peerIds.${user.uid}`]: null
+                }).catch(console.error);
+            }
         };
     }, [user, sessionId]);
 
