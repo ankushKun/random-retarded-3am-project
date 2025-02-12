@@ -298,18 +298,6 @@ export default function CallPage() {
         }
     };
 
-    if (error) {
-        return (
-            <Layout>
-                <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center">
-                    <div className="bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 p-4 rounded-lg">
-                        {error}
-                    </div>
-                </div>
-            </Layout>
-        );
-    }
-
     return (
         <Layout>
             <div className="min-h-[calc(100vh-4rem)] grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
@@ -371,8 +359,11 @@ export default function CallPage() {
                         </div>
                     )}
                     <div className="absolute top-4 left-4 flex gap-2">
-                        <div className="text-sm text-white bg-black/50 px-3 py-1 rounded-full">
-                            {connectionStatus}
+                        <div className={`text-sm px-3 py-1 rounded-full ${error
+                            ? 'bg-red-500/80 text-white'
+                            : 'bg-black/50 text-white'
+                            }`}>
+                            {error || connectionStatus}
                         </div>
                         {remoteIsMuted && (
                             <div className="bg-red-500/80 text-white px-2 py-1 rounded-full text-sm flex items-center gap-1">
