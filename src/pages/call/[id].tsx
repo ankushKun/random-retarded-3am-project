@@ -111,6 +111,12 @@ export default function CallPage() {
                             sampleSize: 16
                         }
                     });
+
+                    // Set initial audio state based on isMuted
+                    stream.getAudioTracks().forEach(track => {
+                        track.enabled = !isMuted;
+                    });
+
                     setLocalStream(stream);
                     setGlobalStream(stream);
                     if (localVideoRef.current) {
@@ -560,10 +566,20 @@ export default function CallPage() {
 
     const toggleMute = () => {
         if (localStream) {
+            const newMutedState = !isMuted;
             localStream.getAudioTracks().forEach(track => {
-                track.enabled = !track.enabled;
+                track.enabled = !newMutedState;
             });
-            setIsMuted(!isMuted);
+            setIsMuted(newMutedState);
+
+            // Also update the track in the peer connection if it exists
+            if (currentCall?.peerConnection) {
+                const sender = currentCall.peerConnection.getSenders()
+                    .find(s => s.track?.kind === 'audio');
+                if (sender && sender.track) {
+                    sender.track.enabled = !newMutedState;
+                }
+            }
         }
     };
 
@@ -718,16 +734,16 @@ export default function CallPage() {
                     />
                     {remoteIsVideoOff && (
                         <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
-                            <div className="h-32 w-32 rounded-full bg-gray-700 flex items-center justify-center">
-                                <span className="text-4xl text-gray-400">
+                            <div className="h-20 w-20 sm:h-32 sm:w-32 rounded-full bg-gray-700 flex items-center justify-center">
+                                <span className="text-2xl sm:text-4xl text-gray-400">
                                     {partnerPeerId?.charAt(0)?.toUpperCase() || '?'}
                                 </span>
                             </div>
                         </div>
                     )}
 
-                    {/* Local video pip */}
-                    <div className="absolute top-4 right-4 w-48 rounded-lg overflow-hidden shadow-lg">
+                    {/* Local video pip - moved to top-right on mobile */}
+                    <div className="absolute top-4 right-4 w-24 sm:w-48 rounded-lg overflow-hidden shadow-lg">
                         <video
                             ref={localVideoRef}
                             autoPlay
@@ -737,8 +753,8 @@ export default function CallPage() {
                         />
                         {isVideoOff && (
                             <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
-                                <div className="h-12 w-12 rounded-full bg-gray-700 flex items-center justify-center">
-                                    <span className="text-xl text-gray-400">
+                                <div className="h-8 w-8 sm:h-12 sm:w-12 rounded-full bg-gray-700 flex items-center justify-center">
+                                    <span className="text-sm sm:text-xl text-gray-400">
                                         {user?.email?.charAt(0)?.toUpperCase() || '?'}
                                     </span>
                                 </div>
@@ -746,9 +762,9 @@ export default function CallPage() {
                         )}
                     </div>
 
-                    {/* Status indicators */}
-                    <div className="absolute top-4 left-4 flex gap-2">
-                        <div className={`text-sm px-3 py-1 rounded-lg flex items-center gap-2 ${error ? 'bg-red-500/90 text-white' :
+                    {/* Status indicators - stacked on mobile */}
+                    <div className="absolute top-4 left-4 flex flex-col gap-2 w-[calc(100%-8rem)] sm:w-fit">
+                        <div className={`text-xs sm:text-sm px-2 sm:px-3 py-1 w-fit rounded-lg flex items-center gap-2 ${error ? 'bg-red-500/90 text-white' :
                             connectionStatus.type === 'connected' ? 'bg-green-500/90 text-white' :
                                 connectionStatus.type === 'checking' ? 'bg-yellow-500/90 text-white' :
                                     connectionStatus.type === 'failed' ? 'bg-red-500/90 text-white' :
@@ -759,53 +775,58 @@ export default function CallPage() {
                                     connectionStatus.type === 'failed' ? 'bg-red-300' :
                                         'bg-gray-300'
                                 }`} />
-                            {error || connectionStatus.detail}
+                            <span className="truncate">{error || connectionStatus.detail}</span>
                         </div>
                         {remoteIsMuted && (
-                            <div className="bg-gray-900/90 text-white px-3 py-1 rounded-lg text-sm flex items-center gap-1">
+                            <div className="bg-gray-900/90 text-white px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm flex items-center gap-1">
                                 <MicIcon muted />
-                                Muted
+                                <span>Muted</span>
                             </div>
                         )}
+                        <div className="bg-gray-900/90 text-white/70 px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm">
+                            Having issues? Try refreshing
+                        </div>
                     </div>
 
-                    {/* Control bar */}
-                    <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-black/70 to-transparent">
-                        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-4">
-                            <button
-                                onClick={toggleMute}
-                                className={`p-4 rounded-full ${isMuted
-                                    ? 'bg-red-500 hover:bg-red-600'
-                                    : 'bg-gray-800 hover:bg-gray-700'
-                                    } text-white transition-colors`}
-                                title={isMuted ? "Unmute" : "Mute"}
-                            >
-                                <MicIcon muted={isMuted} />
-                            </button>
-                            <button
-                                onClick={toggleVideo}
-                                className={`p-4 rounded-full ${isVideoOff
-                                    ? 'bg-red-500 hover:bg-red-600'
-                                    : 'bg-gray-800 hover:bg-gray-700'
-                                    } text-white transition-colors`}
-                                title={isVideoOff ? "Turn Camera On" : "Turn Camera Off"}
-                            >
-                                <CameraIcon disabled={isVideoOff} />
-                            </button>
-                            {devices.length > 1 && <CameraSelector />}
-                            <button
-                                onClick={handleEndCall}
-                                className="p-4 rounded-full bg-red-500 hover:bg-red-600 text-white transition-colors"
-                                title="End Call"
-                            >
-                                <EndCallIcon />
-                            </button>
-                        </div>
+                    {/* Control bar - adjusted for mobile */}
+                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent pt-16 pb-4 px-4">
+                        <div className="flex flex-col gap-4">
+                            {/* Timer - moved above controls on mobile */}
+                            <div className="self-center bg-gray-900/90 text-white px-3 py-1 rounded-lg text-center">
+                                <div className="text-xs sm:text-sm text-gray-400">
+                                    Chat available in
+                                </div>
+                                <div className="text-lg sm:text-xl font-medium text-green-400">
+                                    {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
+                                </div>
+                            </div>
 
-                        {/* Timer */}
-                        <div className="absolute bottom-6 right-4">
-                            <div className="text-white/90 font-medium">
-                                {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
+                            {/* Controls */}
+                            <div className="flex items-center justify-center gap-3 sm:gap-4">
+                                <button
+                                    onClick={toggleMute}
+                                    className={`p-3 sm:p-4 rounded-full ${isMuted ? 'bg-red-500 hover:bg-red-600' : 'bg-gray-800 hover:bg-gray-700'
+                                        } text-white transition-colors`}
+                                    title={isMuted ? "Unmute" : "Mute"}
+                                >
+                                    <MicIcon muted={isMuted} />
+                                </button>
+                                <button
+                                    onClick={toggleVideo}
+                                    className={`p-3 sm:p-4 rounded-full ${isVideoOff ? 'bg-red-500 hover:bg-red-600' : 'bg-gray-800 hover:bg-gray-700'
+                                        } text-white transition-colors`}
+                                    title={isVideoOff ? "Turn Camera On" : "Turn Camera Off"}
+                                >
+                                    <CameraIcon disabled={isVideoOff} />
+                                </button>
+                                {devices.length > 1 && <CameraSelector />}
+                                <button
+                                    onClick={handleEndCall}
+                                    className="p-3 sm:p-4 rounded-full bg-red-500 hover:bg-red-600 text-white transition-colors"
+                                    title="End Call"
+                                >
+                                    <EndCallIcon />
+                                </button>
                             </div>
                         </div>
                     </div>
