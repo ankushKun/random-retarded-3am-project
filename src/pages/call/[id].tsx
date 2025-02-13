@@ -746,13 +746,8 @@ function EndCallIcon() {
             strokeLinecap="round"
             strokeLinejoin="round"
         >
-            <path d="M16 2v4" />
-            <path d="M8 2v4" />
-            <path d="M3 11h18" />
-            <path d="M3 6h18" />
-            <path d="M3 16h18" />
-            <path d="M3 21h18" />
-            <line x1="1" y1="1" x2="23" y2="23" />
+            <path d="M5 4h4l2 5l-2.5 1.5a11 11 0 0 0 5 5l1.5 -2.5l5 2v4a2 2 0 0 1 -2 2a16 16 0 0 1 -15 -15a2 2 0 0 1 2 -2" />
+            <line x1="4" y1="20" x2="20" y2="4" stroke="currentColor" strokeWidth="2" />
         </svg>
     );
 } 
