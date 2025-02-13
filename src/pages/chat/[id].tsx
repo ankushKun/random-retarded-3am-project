@@ -86,7 +86,7 @@ export default function ChatPage() {
         return () => clearInterval(timer);
     }, [cooldownEnds, router]);
 
-    // Add chat duration timer
+    // Update the session check effect
     useEffect(() => {
         if (!user || !sessionId) return;
 
@@ -95,12 +95,18 @@ export default function ChatPage() {
                 const status = await getMatchmakingStatus();
 
                 if (status.status === 'ended') {
-                    router.push('/');
+                    // Don't wait for router.push to complete
+                    router.push('/').catch(console.error);
                     return;
                 }
 
-                if (status.chatTimeLeft) {
-                    setTimeLeft(Math.floor(status.chatTimeLeft / 1000));
+                // Update time left only if we have a valid chat time remaining
+                if (status.chatTimeLeft && status.chatTimeLeft > 0) {
+                    const secondsLeft = Math.ceil(status.chatTimeLeft / 1000);
+                    setTimeLeft(secondsLeft);
+                } else if (status.chatTimeLeft === 0) {
+                    // Don't wait for router.push to complete
+                    router.push('/').catch(console.error);
                 }
             } catch (error) {
                 console.error('Session check failed:', error);
@@ -143,18 +149,12 @@ export default function ChatPage() {
         }
     };
 
-    const formatTime = (date: Date) => {
-        return new Intl.DateTimeFormat('en-US', {
-            hour: 'numeric',
-            minute: 'numeric',
-            hour12: true
-        }).format(date);
-    };
-
-    const formatCooldownTime = (ms: number) => {
-        const minutes = Math.floor(ms / 60000);
-        const seconds = Math.floor((ms % 60000) / 1000);
-        return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    // Add a proper time formatting function
+    const formatTimeLeft = (seconds: number | null) => {
+        if (seconds === null || seconds <= 0) return "0:00";
+        const minutes = Math.floor(seconds / 60);
+        const remainingSeconds = seconds % 60;
+        return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
     };
 
     return (
@@ -163,11 +163,10 @@ export default function ChatPage() {
                 <LoadingSpinner />
             ) : (
                 <div className="max-w-2xl mx-auto min-h-[calc(100vh-4rem)] flex flex-col">
-                    {/* Add cooldown timer at the top */}
-                    {timeLeft && (
+                    {timeLeft && timeLeft > 0 && (
                         <div className="bg-purple-600/10 dark:bg-purple-400/10 p-4 text-center">
                             <p className="text-purple-600 dark:text-purple-400">
-                                Chat closes in {formatCooldownTime(timeLeft)}
+                                Chat closes in {formatTimeLeft(timeLeft)}
                             </p>
                         </div>
                     )}
@@ -190,7 +189,10 @@ export default function ChatPage() {
                                             ? 'text-purple-200'
                                             : 'text-gray-500 dark:text-gray-400'
                                             }`}>
-                                            {formatTime(msg.timestamp)}
+                                            {msg.timestamp && new Date(msg.timestamp).toLocaleTimeString([], {
+                                                hour: '2-digit',
+                                                minute: '2-digit'
+                                            })}
                                         </div>
                                     )}
                                 </div>

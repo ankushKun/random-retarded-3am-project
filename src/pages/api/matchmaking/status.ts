@@ -28,10 +28,9 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
                     const chatEndTime = sessionData.chatEndTime.toDate().getTime();
 
                     if (now >= chatEndTime) {
-                        // Session has completely ended
+                        // Session has completely ended - remove cooldown
                         await db.collection('users').doc(req.user.uid).update({
                             activeSession: null,
-                            lastSessionEnd: Timestamp.now()
                         });
 
                         // Delete the session if it's the last participant to leave

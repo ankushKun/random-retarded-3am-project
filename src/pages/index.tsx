@@ -37,6 +37,7 @@ export default function Home() {
   const [status, setStatus] = useState<MatchmakingStatus>({ status: 'idle' });
   const [lastStatusUpdate, setLastStatusUpdate] = useState<Date>(new Date());
   const [connectionStatus, setConnectionStatus] = useState<string>('');
+  const [isRedirecting, setIsRedirecting] = useState(false);
 
   const getTimeSinceUpdate = () => {
     const seconds = Math.floor((new Date().getTime() - lastStatusUpdate.getTime()) / 1000);
@@ -49,6 +50,8 @@ export default function Home() {
 
     const checkStatus = async () => {
       try {
+        if (isRedirecting) return;
+
         console.log('Checking matchmaking status...');
         setConnectionStatus('Checking status...');
         const statusData = await getMatchmakingStatus();
@@ -57,16 +60,17 @@ export default function Home() {
         setLastStatusUpdate(new Date());
         setConnectionStatus('Connected');
 
-        // Handle different status cases
         switch (statusData.status) {
           case 'in_session':
+            setIsRedirecting(true);
             setConnectionStatus('Active video call found, redirecting...');
-            router.push(`/call/${statusData.sessionId}`);
+            await router.push(`/call/${statusData.sessionId}`);
             return;
 
           case 'in_chat':
+            setIsRedirecting(true);
             setConnectionStatus('Active chat found, redirecting...');
-            router.push(`/chat/${statusData.sessionId}`);
+            await router.push(`/chat/${statusData.sessionId}`);
             return;
 
           case 'queued':
@@ -76,8 +80,9 @@ export default function Home() {
                 const matchResult = await createMatch();
                 console.log('Match creation result:', matchResult);
                 if (matchResult.sessionId) {
+                  setIsRedirecting(true);
                   setConnectionStatus('Match found! Redirecting...');
-                  router.push(`/call/${matchResult.sessionId}`);
+                  await router.push(`/call/${matchResult.sessionId}`);
                   return;
                 }
               } catch (error) {
@@ -94,11 +99,14 @@ export default function Home() {
       }
     };
 
-    const interval = setInterval(checkStatus, 3000);
-    checkStatus(); // Initial check
+    const interval = setInterval(checkStatus, 5000);
+    checkStatus();
 
-    return () => clearInterval(interval);
-  }, [user, router]);
+    return () => {
+      clearInterval(interval);
+      setIsRedirecting(false);
+    };
+  }, [user, router, isRedirecting]);
 
   const startMatching = async () => {
     console.log('Starting matchmaking process...');
