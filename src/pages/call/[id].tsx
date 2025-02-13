@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '../../components/Layout';
-import { getMatchmakingStatus, updatePeerId } from '../../utils/api';
+import { getMatchmakingStatus, updatePeerId, endSession } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
 import Peer, { MediaConnection } from 'peerjs';
 import { doc, updateDoc } from 'firebase/firestore';
@@ -316,7 +316,6 @@ export default function CallPage() {
         return () => {
             console.log('Component unmounting, cleaning up...');
             cleanupMedia();
-            stopMediaStream();
             if (sessionId && user) {
                 console.log('Removing peer ID via API');
                 updatePeerId(sessionId as string, null).catch(error =>
@@ -375,27 +374,24 @@ export default function CallPage() {
     }, [timeLeft, sessionId, router]);
 
     const cleanupMedia = () => {
-        console.log('Cleaning up media...', {
-            hasLocalStream: !!localStream,
-            hasCurrentCall: !!currentCall,
-            hasPeer: !!peer
-        });
+        console.log('Cleaning up media streams...');
         if (localStream) {
-            localStream.getTracks().forEach(track => track.stop());
+            localStream.getTracks().forEach(track => {
+                console.log('Stopping track:', track.kind);
+                track.stop();
+            });
             setLocalStream(null);
         }
+        stopMediaStream(); // This calls the global stream cleanup
+
         if (currentCall) {
             currentCall.close();
             setCurrentCall(null);
         }
-        if (localVideoRef.current) {
-            localVideoRef.current.srcObject = null;
-        }
-        if (remoteVideoRef.current) {
-            remoteVideoRef.current.srcObject = null;
-        }
+
         if (peer) {
             peer.destroy();
+            setPeer(null);
         }
     };
 
@@ -532,6 +528,25 @@ export default function CallPage() {
         );
     }
 
+    // Update the handleEndCall function
+    const handleEndCall = async () => {
+        try {
+            if (sessionId) {
+                // Clean up media first
+                cleanupMedia();
+
+                // Then end the session
+                await endSession(sessionId);
+                router.push('/');
+            }
+        } catch (error) {
+            console.error('Failed to end call:', error);
+            setError('Failed to end call');
+            // Still try to cleanup media even if session end fails
+            cleanupMedia();
+        }
+    };
+
     return (
         <Layout>
             <div className="min-h-[calc(100vh-4rem)] bg-gray-900 relative">
@@ -620,6 +635,13 @@ export default function CallPage() {
                                 <CameraIcon disabled={isVideoOff} />
                             </button>
                             {devices.length > 1 && <CameraSelector />}
+                            <button
+                                onClick={handleEndCall}
+                                className="p-4 rounded-full bg-red-500 hover:bg-red-600 text-white transition-colors"
+                                title="End Call"
+                            >
+                                <EndCallIcon />
+                            </button>
                         </div>
 
                         {/* Timer */}
@@ -673,6 +695,30 @@ function CameraIcon({ disabled = false }: { disabled?: boolean }) {
                     <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
                 </>
             )}
+        </svg>
+    );
+}
+
+function EndCallIcon() {
+    return (
+        <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+        >
+            <path d="M16 2v4" />
+            <path d="M8 2v4" />
+            <path d="M3 11h18" />
+            <path d="M3 6h18" />
+            <path d="M3 16h18" />
+            <path d="M3 21h18" />
+            <line x1="1" y1="1" x2="23" y2="23" />
         </svg>
     );
 } 

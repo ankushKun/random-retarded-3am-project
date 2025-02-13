@@ -58,4 +58,19 @@ export async function updatePeerId(sessionId: string, peerId: string | null) {
     const data = await res.json();
     console.log('Update peer ID response:', data);
     return data;
-} 
+}
+
+export const endSession = async (sessionId: string) => {
+    const response = await fetch('/api/matchmaking/end-session', {
+        method: 'POST',
+        headers: await getAuthHeader(),
+        body: JSON.stringify({ sessionId }),
+    });
+
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to end session');
+    }
+
+    return response.json();
+}; 

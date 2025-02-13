@@ -27,6 +27,12 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
                     const videoEndTime = sessionData.videoEndTime.toDate().getTime();
                     const chatEndTime = sessionData.chatEndTime.toDate().getTime();
 
+                    // Get partner's info
+                    const partnerId = sessionData.participants.find((p: string) => p !== req.user.uid);
+                    const partnerDoc = await db.collection('users').doc(partnerId).get();
+                    const partnerData = partnerDoc.data();
+                    const partnerName = partnerData?.displayName || 'Anonymous User';
+
                     if (now >= chatEndTime) {
                         // Session has completely ended - remove cooldown
                         await db.collection('users').doc(req.user.uid).update({
@@ -50,7 +56,8 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
                         return res.status(200).json({
                             status: 'in_chat',
                             sessionId: userData.activeSession,
-                            partnerId: sessionData.participants.find((p: string) => p !== req.user.uid),
+                            partnerId: partnerId,
+                            partnerName: partnerName,
                             chatTimeLeft: Math.max(0, chatEndTime - now)
                         });
                     }
@@ -59,21 +66,10 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
                     return res.status(200).json({
                         status: 'in_session',
                         sessionId: userData.activeSession,
-                        partnerId: sessionData.participants.find((p: string) => p !== req.user.uid),
+                        partnerId: partnerId,
+                        partnerName: partnerName,
                         videoTimeLeft: Math.max(0, videoEndTime - now),
                         peerIds: sessionData.peerIds || {}
-                    });
-                }
-            }
-
-            // Check cooldown
-            if (userData?.lastSessionEnd) {
-                const cooldownEnd = userData.lastSessionEnd.toDate().getTime() + 5 * 60 * 1000;
-                if (Date.now() < cooldownEnd) {
-                    return res.status(200).json({
-                        status: 'cooldown',
-                        cooldownEnd,
-                        timeLeft: cooldownEnd - Date.now()
                     });
                 }
             }

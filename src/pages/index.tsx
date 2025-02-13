@@ -4,20 +4,23 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import Layout from '../components/Layout';
 import { useRouter } from 'next/router';
-import { joinMatchmaking, getMatchmakingStatus, cancelMatchmaking, createMatch } from '../utils/api';
+import { joinMatchmaking, getMatchmakingStatus, cancelMatchmaking, createMatch, endSession } from '../utils/api';
 import ProfileSetup from '../components/ProfileSetup';
 import Link from 'next/link';
 
 type MatchmakingStatus = {
-  status: 'idle' | 'queued' | 'in_session' | 'cooldown' | 'connecting' | 'error';
+  status: 'idle' | 'queued' | 'in_session' | 'cooldown' | 'connecting' | 'error' | 'matched';
   timeLeft?: number;
   sessionId?: string;
   cooldownEnd?: number;
   queuedAt?: Date;
   queuePosition?: number;
   totalInQueue?: number;
+  partnerId?: string;
+  partnerName?: string;
   connectionStatus?: string;
   lastUpdated?: number;
+  activeSessionId?: string;
 };
 
 export default function Home() {
@@ -53,9 +56,14 @@ export default function Home() {
 
         switch (statusData.status) {
           case 'in_session':
-            setIsRedirecting(true);
-            setConnectionStatus('Active video call found, redirecting...');
-            await router.push(`/call/${statusData.sessionId}`);
+            setStatus({
+              ...statusData,
+              status: 'in_session',
+              sessionId: statusData.sessionId,
+              partnerId: statusData.partnerId,
+              partnerName: statusData.partnerName
+            });
+            setConnectionStatus('Match Found');
             return;
 
           case 'in_chat':
@@ -71,9 +79,14 @@ export default function Home() {
                 const matchResult = await createMatch();
                 console.log('Match creation result:', matchResult);
                 if (matchResult.sessionId) {
-                  setIsRedirecting(true);
-                  setConnectionStatus('Match found! Redirecting...');
-                  await router.push(`/call/${matchResult.sessionId}`);
+                  setStatus({
+                    ...statusData,
+                    status: 'matched',
+                    sessionId: matchResult.sessionId,
+                    partnerId: matchResult.partnerId,
+                    partnerName: matchResult.partnerName
+                  });
+                  setConnectionStatus('Match found!');
                   return;
                 }
               } catch (error) {
@@ -138,7 +151,7 @@ export default function Home() {
   };
 
   const renderMainContent = () => {
-    const content = (
+    let content = (
       <div className="min-h-[calc(100vh-4rem)] flex flex-col items-center justify-center p-4">
         <div className="max-w-3xl text-center">
           <h1 className="text-5xl font-bold text-gray-900 dark:text-white mb-8">
@@ -331,6 +344,95 @@ export default function Home() {
         </div>
       </div>
     );
+
+    if (status.status === 'matched') {
+      content = (
+        <>
+          {content}
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+            <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl max-w-md w-full mx-4 shadow-xl">
+              <div className="text-center">
+                <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <span className="text-3xl">🎉</span>
+                </div>
+                <h3 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">
+                  Match Found!
+                </h3>
+                <p className="text-gray-600 dark:text-gray-300 mb-6">
+                  You've been matched with{' '}
+                  <span className="font-semibold text-purple-600 dark:text-purple-400">
+                    {status.partnerName || 'someone'}
+                  </span>
+                </p>
+                <div className="space-y-3">
+                  <button
+                    onClick={() => router.push(`/call/${status.sessionId}`)}
+                    className="w-full bg-gradient-to-r from-purple-600 to-pink-500 text-white px-6 py-3 rounded-xl font-semibold hover:opacity-90 transition-opacity"
+                  >
+                    Join Video Call
+                  </button>
+                  <button
+                    onClick={cancelSearch}
+                    className="w-full text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 text-sm"
+                  >
+                    Cancel Match
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      );
+    }
+
+    if (status.status === 'in_session') {
+      content = (
+        <>
+          {content}
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+            <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl max-w-md w-full mx-4 shadow-xl">
+              <div className="text-center">
+                <div className="w-16 h-16 bg-yellow-100 dark:bg-yellow-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <span className="text-3xl">⚠️</span>
+                </div>
+                <h3 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">
+                  Match Found
+                </h3>
+                <p className="text-gray-600 dark:text-gray-300 mb-6">
+                  You have an active video call with{' '}
+                  <span className="font-semibold text-purple-600 dark:text-purple-400">
+                    {status.partnerName || 'someone'}
+                  </span>
+                </p>
+                <div className="space-y-3">
+                  <button
+                    onClick={() => router.push(`/call/${status.sessionId}`)}
+                    className="w-full bg-gradient-to-r from-purple-600 to-pink-500 text-white px-6 py-3 rounded-xl font-semibold hover:opacity-90 transition-opacity"
+                  >
+                    Join Call
+                  </button>
+                  <button
+                    onClick={async () => {
+                      try {
+                        await endSession(status.sessionId!);
+                        await cancelSearch();
+                        setStatus({ status: 'idle' });
+                      } catch (error) {
+                        console.error('Error ending session:', error);
+                        setError('Failed to end session');
+                      }
+                    }}
+                    className="w-full text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 text-sm"
+                  >
+                    End Session
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      );
+    }
 
     return content;
   };

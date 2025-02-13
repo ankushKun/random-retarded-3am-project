@@ -18,16 +18,6 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
                 return res.status(400).json({ error: 'User already in active session' });
             }
 
-            if (userData?.lastSessionEnd) {
-                const cooldownEnd = userData.lastSessionEnd.toDate().getTime() + 5 * 60 * 1000; // 5 minutes
-                if (Date.now() < cooldownEnd) {
-                    return res.status(400).json({
-                        error: 'User in cooldown',
-                        cooldownEnd
-                    });
-                }
-            }
-
             // Add user to queue
             await db.collection('matchmaking_queue').doc(req.user.uid).set({
                 userId: req.user.uid,
