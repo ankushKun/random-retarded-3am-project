@@ -7,6 +7,7 @@ import Peer, { MediaConnection } from 'peerjs';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { Timestamp } from 'firebase/firestore';
+import { setGlobalStream, stopMediaStream } from '../../utils/media';
 
 export default function CallPage() {
     const router = useRouter();
@@ -86,6 +87,7 @@ export default function CallPage() {
                         audio: true
                     });
                     setLocalStream(stream);
+                    setGlobalStream(stream);
                     if (localVideoRef.current) {
                         localVideoRef.current.srcObject = stream;
                     }
@@ -314,6 +316,7 @@ export default function CallPage() {
         return () => {
             console.log('Component unmounting, cleaning up...');
             cleanupMedia();
+            stopMediaStream();
             if (sessionId && user) {
                 console.log('Removing peer ID via API');
                 updatePeerId(sessionId as string, null).catch(error =>
@@ -573,15 +576,15 @@ export default function CallPage() {
                     {/* Status indicators */}
                     <div className="absolute top-4 left-4 flex gap-2">
                         <div className={`text-sm px-3 py-1 rounded-lg flex items-center gap-2 ${error ? 'bg-red-500/90 text-white' :
-                                connectionStatus.type === 'connected' ? 'bg-green-500/90 text-white' :
-                                    connectionStatus.type === 'checking' ? 'bg-yellow-500/90 text-white' :
-                                        connectionStatus.type === 'failed' ? 'bg-red-500/90 text-white' :
-                                            'bg-gray-900/90 text-white'
+                            connectionStatus.type === 'connected' ? 'bg-green-500/90 text-white' :
+                                connectionStatus.type === 'checking' ? 'bg-yellow-500/90 text-white' :
+                                    connectionStatus.type === 'failed' ? 'bg-red-500/90 text-white' :
+                                        'bg-gray-900/90 text-white'
                             }`}>
                             <div className={`w-2 h-2 rounded-full ${connectionStatus.type === 'connected' ? 'bg-green-300' :
-                                    connectionStatus.type === 'checking' ? 'bg-yellow-300' :
-                                        connectionStatus.type === 'failed' ? 'bg-red-300' :
-                                            'bg-gray-300'
+                                connectionStatus.type === 'checking' ? 'bg-yellow-300' :
+                                    connectionStatus.type === 'failed' ? 'bg-red-300' :
+                                        'bg-gray-300'
                                 }`} />
                             {error || connectionStatus.detail}
                         </div>

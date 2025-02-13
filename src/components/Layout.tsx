@@ -2,18 +2,36 @@ import { useAuth } from '../contexts/AuthContext';
 import Link from 'next/link';
 import Image from 'next/image';
 import Head from 'next/head';
+import { useEffect } from 'react';
+import { useRouter } from 'next/router';
+import { stopMediaStream } from '../utils/media';
 
 export default function Layout({ children, title }: { children: React.ReactNode, title?: string }) {
     const { user, logout } = useAuth();
-    const pageTitle = title ? `${title} | CallMeMaybe` : 'CallMeMaybe - Meet Someone New';
+    const router = useRouter();
+    const pageTitle = title ? `${title} | CallMeMaybe` : 'CallMeMaybe - Quick Video Chats';
+
+    useEffect(() => {
+        const handleRouteChange = (url: string) => {
+            if (!url.startsWith('/call/')) {
+                stopMediaStream();
+            }
+        };
+
+        router.events.on('routeChangeStart', handleRouteChange);
+
+        return () => {
+            router.events.off('routeChangeStart', handleRouteChange);
+        };
+    }, [router]);
 
     return (
         <div className="min-h-screen bg-gradient-to-b from-purple-50 to-pink-50 dark:from-gray-900 dark:to-gray-800">
             <Head>
                 <title>{pageTitle}</title>
-                <meta name="description" content="Connect with people through meaningful video conversations. One hour to make a lasting impression." />
+                <meta name="description" content="Connect with people through quick 15-minute video conversations. If you click, get 5 bonus minutes to exchange contacts!" />
                 <meta property="og:title" content={pageTitle} />
-                <meta property="og:description" content="Connect with people through meaningful video conversations. One hour to make a lasting impression." />
+                <meta property="og:description" content="Connect with people through quick 15-minute video conversations. If you click, get 5 bonus minutes to exchange contacts!" />
                 <meta property="og:type" content="website" />
                 <meta property="og:image" content="/og-image.jpg" />
                 <meta property="og:url" content="https://callmemaybe.yourdomain.com" />
