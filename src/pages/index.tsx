@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import Layout from '../components/Layout';
 import { useRouter } from 'next/router';
 import { joinMatchmaking, getMatchmakingStatus, cancelMatchmaking, createMatch } from '../utils/api';
+import ProfileSetup from '../components/ProfileSetup';
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -30,7 +31,7 @@ type MatchmakingStatus = {
 };
 
 export default function Home() {
-  const { user, signInWithGoogle } = useAuth();
+  const { user, signInWithGoogle, profileComplete } = useAuth();
   const router = useRouter();
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -170,6 +171,14 @@ export default function Home() {
             Sign in to Start
           </button>
         </div>
+      </Layout>
+    );
+  }
+
+  if (!profileComplete) {
+    return (
+      <Layout>
+        <ProfileSetup onComplete={() => window.location.reload()} />
       </Layout>
     );
   }
