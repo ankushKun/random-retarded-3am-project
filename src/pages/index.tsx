@@ -149,10 +149,10 @@ export default function Home() {
 
   if (!user) {
     return (
-      <Layout>
+      <Layout title="Welcome">
         <div className="min-h-[calc(100vh-4rem)] flex flex-col items-center justify-center p-4">
           <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-8">
-            Welcome to DateLock
+            Welcome to CallMeMaybe
           </h1>
           <p className="text-gray-600 dark:text-gray-300 mb-8 text-center max-w-md">
             Connect with people through meaningful video conversations.

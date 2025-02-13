@@ -1,0 +1,21 @@
+{
+    "name": "CallMeMaybe",
+    "short_name": "CallMeMaybe",
+    "description": "Connect with people through meaningful video conversations",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#111827",
+    "theme_color": "#7C3AED",
+    "icons": [
+        {
+            "src": "/icon-192x192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "/icon-512x512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
+} 
