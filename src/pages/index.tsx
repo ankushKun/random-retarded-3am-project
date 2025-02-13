@@ -259,7 +259,7 @@ export default function Home() {
             )}
 
             {/* How it Works Section */}
-            <div className="max-w-4xl mx-auto">
+            {/* <div className="max-w-4xl mx-auto">
               <h2 className="text-2xl font-semibold text-gray-800 dark:text-white mb-8">
                 How It Works
               </h2>
@@ -320,7 +320,7 @@ export default function Home() {
                   </div>
                 </div>
               </div>
-            </div>
+            </div> */}
 
             {/* Feature Cards */}
             <div className="grid md:grid-cols-3 gap-6 text-left mt-12">

@@ -4,10 +4,16 @@ import Layout from '../../components/Layout';
 import { getMatchmakingStatus, updatePeerId, endSession } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
 import Peer, { MediaConnection } from 'peerjs';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, onSnapshot, arrayUnion, Timestamp } from 'firebase/firestore';
 import { db } from '../../config/firebase';
-import { Timestamp } from 'firebase/firestore';
 import { setGlobalStream, stopMediaStream } from '../../utils/media';
+
+interface Message {
+    id: string;
+    text: string;
+    senderId: string;
+    timestamp: Date;
+}
 
 export default function CallPage() {
     const router = useRouter();
@@ -43,6 +49,11 @@ export default function CallPage() {
 
     // Add state for camera selector visibility
     const [isCameraSelectorOpen, setIsCameraSelectorOpen] = useState(false);
+
+    // Add state for chat
+    const [isChatOpen, setIsChatOpen] = useState(false);
+    const [message, setMessage] = useState('');
+    const [messages, setMessages] = useState<Message[]>([]);
 
     // Add at the start of the component
     useEffect(() => {
@@ -721,6 +732,69 @@ export default function CallPage() {
         }
     };
 
+    // Add this effect to listen for messages
+    useEffect(() => {
+        if (!sessionId) return;
+
+        const sessionRef = doc(db, 'sessions', sessionId as string);
+        const unsubscribe = onSnapshot(sessionRef, (doc) => {
+            if (doc.exists()) {
+                const sessionData = doc.data();
+                const sessionMessages = sessionData.messages || [];
+                setMessages(sessionMessages.map((msg: any) => ({
+                    ...msg,
+                    timestamp: msg.timestamp?.toDate()
+                })));
+            }
+        });
+
+        return () => unsubscribe();
+    }, [sessionId]);
+
+    // Add this function to send messages
+    const sendMessage = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!message.trim() || !user || !sessionId) return;
+
+        try {
+            const newMessage = {
+                id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                text: message.trim(),
+                senderId: user.uid,
+                timestamp: Timestamp.now()
+            };
+
+            const sessionRef = doc(db, 'sessions', sessionId as string);
+            await updateDoc(sessionRef, {
+                messages: arrayUnion(newMessage)
+            });
+
+            setMessage('');
+        } catch (error) {
+            console.error('Error sending message:', error);
+        }
+    };
+
+    // Add this component for the chat toggle button
+    const ChatToggleButton = () => (
+        <button
+            onClick={() => setIsChatOpen(!isChatOpen)}
+            className={`p-3 sm:p-4 rounded-full ${isChatOpen ? 'bg-purple-600' : 'bg-gray-800 hover:bg-gray-700'} text-white transition-colors`}
+            title={isChatOpen ? "Close Chat" : "Open Chat"}
+        >
+            <ChatIcon />
+        </button>
+    );
+
+    // Add this icon component
+    function ChatIcon() {
+        return (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+        );
+    }
+
     return (
         <Layout>
             <div className="min-h-[calc(100vh-4rem)] bg-gray-900 relative">
@@ -820,6 +894,7 @@ export default function CallPage() {
                                     <CameraIcon disabled={isVideoOff} />
                                 </button>
                                 {devices.length > 1 && <CameraSelector />}
+                                <ChatToggleButton />
                                 <button
                                     onClick={handleEndCall}
                                     className="p-3 sm:p-4 rounded-full bg-red-500 hover:bg-red-600 text-white transition-colors"
@@ -831,6 +906,72 @@ export default function CallPage() {
                         </div>
                     </div>
                 </div>
+
+                {/* Chat panel */}
+                {isChatOpen && (
+                    <div className="absolute right-0 top-0 bottom-0 w-80 bg-white dark:bg-gray-800 shadow-lg flex flex-col">
+                        <div className="p-4 border-b dark:border-gray-700 flex justify-between items-center">
+                            <h3 className="font-semibold text-gray-900 dark:text-white">Chat</h3>
+                            <button
+                                onClick={() => setIsChatOpen(false)}
+                                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                                </svg>
+                            </button>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                            {messages.map((msg) => (
+                                <div
+                                    key={msg.id}
+                                    className={`flex ${msg.senderId === user?.uid ? 'justify-end' : 'justify-start'}`}
+                                >
+                                    <div
+                                        className={`max-w-[80%] rounded-lg px-4 py-2 ${msg.senderId === user?.uid
+                                            ? 'bg-purple-600 text-white'
+                                            : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white'
+                                            }`}
+                                    >
+                                        <div>{msg.text}</div>
+                                        <div className={`text-xs mt-1 ${msg.senderId === user?.uid
+                                            ? 'text-purple-200'
+                                            : 'text-gray-500 dark:text-gray-400'
+                                            }`}>
+                                            {new Date(msg.timestamp).toLocaleTimeString([], {
+                                                hour: '2-digit',
+                                                minute: '2-digit'
+                                            })}
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        <form onSubmit={sendMessage} className="p-4 border-t dark:border-gray-700">
+                            <div className="flex gap-2">
+                                <input
+                                    type="text"
+                                    value={message}
+                                    onChange={(e) => setMessage(e.target.value)}
+                                    placeholder="Type a message..."
+                                    className="flex-1 rounded-full px-4 py-2 bg-gray-100 dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-purple-600"
+                                />
+                                <button
+                                    type="submit"
+                                    className="bg-purple-600 hover:bg-purple-700 text-white rounded-full p-2 transition-colors"
+                                    disabled={!message.trim()}
+                                >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                )}
             </div>
         </Layout>
     );
