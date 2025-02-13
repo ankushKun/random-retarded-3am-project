@@ -334,7 +334,7 @@ export default function CallPage() {
                 const status = await getMatchmakingStatus();
 
                 if (status.status !== 'in_session' || status.sessionId !== sessionId) {
-                    router.push('/');
+                    router.push('/?cleanup=true');
                     return;
                 }
 
@@ -356,34 +356,47 @@ export default function CallPage() {
     // Timer effect
     useEffect(() => {
         if (timeLeft <= 0) {
-            cleanupMedia();
-
-            // Update session status to chat phase
             if (sessionId) {
                 const sessionRef = doc(db, 'sessions', sessionId as string);
                 updateDoc(sessionRef, {
                     status: 'chat'
+                }).then(() => {
+                    window.location.reload();
                 }).catch(console.error);
             }
-
-            router.push(`/chat/${sessionId}`);
         } else {
             const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
             return () => clearTimeout(timer);
         }
-    }, [timeLeft, sessionId, router]);
+    }, [timeLeft, sessionId]);
 
     const cleanupMedia = () => {
         console.log('Cleaning up media streams...');
+        // refresh after 3 seconds
+
+        // Clean up local stream
         if (localStream) {
             localStream.getTracks().forEach(track => {
                 console.log('Stopping track:', track.kind);
                 track.stop();
+                track.enabled = false;
             });
+            setTimeout(() => window.location.reload())
             setLocalStream(null);
         }
-        stopMediaStream(); // This calls the global stream cleanup
 
+        // Clean up global stream
+        stopMediaStream();
+
+        // Clean up video elements
+        if (localVideoRef.current) {
+            localVideoRef.current.srcObject = null;
+        }
+        if (remoteVideoRef.current) {
+            remoteVideoRef.current.srcObject = null;
+        }
+
+        // Clean up peer connection
         if (currentCall) {
             currentCall.close();
             setCurrentCall(null);
@@ -393,7 +406,33 @@ export default function CallPage() {
             peer.destroy();
             setPeer(null);
         }
+
+        // Request all user media and stop it (catches any lingering streams)
+        if (typeof window !== 'undefined') {
+            navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+                .then(stream => {
+                    stream.getTracks().forEach(track => {
+                        track.stop();
+                        track.enabled = false;
+                    });
+                })
+                .catch(console.error);
+        }
     };
+
+    // Add cleanup to the router change event
+    useEffect(() => {
+        const handleRouteChange = () => {
+            console.log('Route changing, cleaning up media...');
+            cleanupMedia();
+        };
+
+        router.events.on('routeChangeStart', handleRouteChange);
+
+        return () => {
+            router.events.off('routeChangeStart', handleRouteChange);
+        };
+    }, [router]);
 
     const toggleMute = () => {
         if (localStream) {
@@ -532,18 +571,13 @@ export default function CallPage() {
     const handleEndCall = async () => {
         try {
             if (sessionId) {
-                // Clean up media first
-                cleanupMedia();
-
-                // Then end the session
-                await endSession(sessionId);
-                router.push('/');
+                await endSession(sessionId as string);
+                window.location.reload();
             }
         } catch (error) {
             console.error('Failed to end call:', error);
             setError('Failed to end call');
-            // Still try to cleanup media even if session end fails
-            cleanupMedia();
+            window.location.reload();
         }
     };
 

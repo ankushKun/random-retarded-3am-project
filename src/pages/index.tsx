@@ -33,6 +33,17 @@ export default function Home() {
   const [connectionStatus, setConnectionStatus] = useState<string>('');
   const [isRedirecting, setIsRedirecting] = useState(false);
 
+  useEffect(() => {
+    const { cleanup } = router.query;
+    if (cleanup === 'true') {
+      // Remove the cleanup parameter from the URL
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, '', newUrl);
+      // Refresh the page
+      window.location.reload();
+    }
+  }, [router.query]);
+
   const getTimeSinceUpdate = () => {
     const seconds = Math.floor((new Date().getTime() - lastStatusUpdate.getTime()) / 1000);
     if (seconds < 60) return `${seconds}s ago`;
@@ -415,8 +426,7 @@ export default function Home() {
                     onClick={async () => {
                       try {
                         await endSession(status.sessionId!);
-                        await cancelSearch();
-                        setStatus({ status: 'idle' });
+                        window.location.reload();
                       } catch (error) {
                         console.error('Error ending session:', error);
                         setError('Failed to end session');
