@@ -74,8 +74,15 @@ export default function CallPage() {
                 config: {
                     iceServers: [
                         { urls: 'stun:stun.l.google.com:19302' },
-                        { urls: 'stun:global.stun.twilio.com:3478' }
-                    ]
+                        { urls: 'stun:stun.relay.metered.ca:80' },
+                        // { urls: 'turn:a.relay.metered.ca:80', username: 'YOUR_USERNAME', credential: 'YOUR_CREDENTIAL' },
+                        // { urls: 'turn:a.relay.metered.ca:443', username: 'YOUR_USERNAME', credential: 'YOUR_CREDENTIAL' },
+                        // { urls: 'turn:a.relay.metered.ca:443?transport=tcp', username: 'YOUR_USERNAME', credential: 'YOUR_CREDENTIAL' }
+                    ],
+                    iceTransportPolicy: 'all',
+                    iceCandidatePoolSize: 10,
+                    bundlePolicy: 'max-bundle',
+                    rtcpMuxPolicy: 'require'
                 }
             });
 
@@ -83,8 +90,26 @@ export default function CallPage() {
             const setupMediaStream = async () => {
                 try {
                     const stream = await navigator.mediaDevices.getUserMedia({
-                        video: selectedCamera ? { deviceId: selectedCamera } : true,
-                        audio: true
+                        video: {
+                            deviceId: selectedCamera ? { exact: selectedCamera } : undefined,
+                            width: { ideal: 1280 },
+                            height: { ideal: 720 },
+                            frameRate: { ideal: 30, max: 60 },
+                            aspectRatio: { ideal: 1.7777777778 },
+                            // Enable hardware acceleration when available
+                            // encoderConfig: {
+                            //     bitrateMax: 1000000, // 1Mbps
+                            //     bitrateMin: 250000,  // 250kbps
+                            //     hardwareAcceleration: 'prefer-hardware'
+                            // } as any
+                        },
+                        audio: {
+                            echoCancellation: true,
+                            noiseSuppression: true,
+                            autoGainControl: true,
+                            sampleRate: 48000,
+                            sampleSize: 16
+                        }
                     });
                     setLocalStream(stream);
                     setGlobalStream(stream);
@@ -228,34 +253,88 @@ export default function CallPage() {
                 }
             };
 
-            // Monitor connection quality
+            // Enhanced connection quality monitoring
             if (pc.getStats) {
+                let lastPacketLoss = 0;
+                let consecutivePoorConnections = 0;
+
                 setInterval(async () => {
                     try {
                         const stats = await pc.getStats();
                         let totalPacketsLost = 0;
                         let totalPackets = 0;
+                        let currentBitrate = 0;
+                        let lastTimestamp: number;
+                        let lastBytes = 0;
 
                         stats.forEach(stat => {
                             if (stat.type === 'inbound-rtp' && 'packetsLost' in stat) {
                                 totalPacketsLost += stat.packetsLost as number;
                                 totalPackets += (stat.packetsReceived as number) + (stat.packetsLost as number);
+
+                                // Calculate bitrate
+                                if (lastTimestamp && 'bytesReceived' in stat) {
+                                    const deltaTime = (stat.timestamp - lastTimestamp) / 1000;
+                                    const deltaBytes = (stat.bytesReceived as number) - lastBytes;
+                                    currentBitrate = (deltaBytes * 8) / deltaTime; // bits per second
+                                }
+
+                                if ('timestamp' in stat) {
+                                    lastTimestamp = stat.timestamp;
+                                }
+                                if ('bytesReceived' in stat) {
+                                    lastBytes = stat.bytesReceived as number;
+                                }
                             }
                         });
 
                         if (totalPackets > 0) {
                             const lossRate = (totalPacketsLost / totalPackets) * 100;
-                            if (lossRate > 15) {
-                                setConnectionStatus(prev => ({
-                                    ...prev,
-                                    detail: 'Poor connection quality'
-                                }));
+                            const packetLossIncrease = totalPacketsLost - lastPacketLoss;
+                            lastPacketLoss = totalPacketsLost;
+
+                            // Adaptive quality management
+                            if (lossRate > 15 || packetLossIncrease > 50) {
+                                consecutivePoorConnections++;
+                                if (consecutivePoorConnections >= 3) {
+                                    // Reduce video quality
+                                    const sender = pc.getSenders().find(s => s.track?.kind === 'video');
+                                    if (sender) {
+                                        const params = sender.getParameters();
+                                        if (!params.encodings) {
+                                            params.encodings = [{}];
+                                        }
+                                        params.encodings[0].maxBitrate = Math.max(250000,
+                                            (params.encodings[0].maxBitrate || 1000000) * 0.8);
+                                        sender.setParameters(params).catch(console.error);
+                                    }
+
+                                    setConnectionStatus(prev => ({
+                                        ...prev,
+                                        detail: 'Reducing video quality due to poor connection'
+                                    }));
+                                }
+                            } else {
+                                consecutivePoorConnections = 0;
+                                // Gradually increase quality if connection is good
+                                if (currentBitrate > 0 && currentBitrate < 100000) { // Less than 100kbps
+                                    const sender = pc.getSenders().find(s => s.track?.kind === 'video');
+                                    if (sender) {
+                                        const params = sender.getParameters();
+                                        if (!params.encodings) {
+                                            params.encodings = [{}];
+                                        }
+                                        params.encodings[0].maxBitrate = Math.min(1000000,
+                                            (params.encodings[0].maxBitrate || 250000) * 1.2);
+                                        sender.setParameters(params).catch(console.error);
+                                    }
+                                }
                             }
                         }
                     } catch (error) {
                         console.error('Failed to get connection stats:', error);
                     }
-                }, 5000);
+                }, 2000); // Check more frequently
             }
         };
 
@@ -309,6 +388,51 @@ export default function CallPage() {
                 });
                 cleanupMedia();
             });
+
+            // Add connection recovery logic
+            let reconnectAttempts = 0;
+            const maxReconnectAttempts = 5;
+
+            const attemptReconnect = async () => {
+                if (reconnectAttempts >= maxReconnectAttempts) {
+                    setError('Unable to restore connection after multiple attempts');
+                    return;
+                }
+
+                reconnectAttempts++;
+                console.log(`Attempting to reconnect (attempt ${reconnectAttempts})`);
+
+                try {
+                    if (call.peerConnection?.connectionState === 'failed') {
+                        // Create a new connection
+                        cleanupMedia();
+                        initializePeer();
+                    } else {
+                        // Try to restart ICE
+                        const pc = call.peerConnection;
+                        if (pc) {
+                            const offer = await pc.createOffer({ iceRestart: true });
+                            await pc.setLocalDescription(offer);
+                        }
+                    }
+                } catch (error) {
+                    console.error('Reconnection attempt failed:', error);
+                    setTimeout(attemptReconnect, 2000 * reconnectAttempts); // Exponential backoff
+                }
+            };
+
+            if (call.peerConnection) {
+                call.peerConnection.onconnectionstatechange = () => {
+                    const state = call.peerConnection?.connectionState;
+                    console.log('Connection state changed:', state);
+
+                    if (state === 'failed') {
+                        attemptReconnect();
+                    } else if (state === 'connected') {
+                        reconnectAttempts = 0; // Reset counter on successful connection
+                    }
+                };
+            }
         };
 
         initializePeer();
