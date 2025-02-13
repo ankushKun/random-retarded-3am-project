@@ -143,13 +143,78 @@ export default function Home() {
           <h1 className="text-5xl font-bold text-gray-900 dark:text-white mb-8">
             Call Me Maybe 🤙
           </h1>
-          <div className="space-y-8 mb-12">
+          <div className="space-y-12 mb-12">
             <p className="text-xl text-gray-600 dark:text-gray-300">
               Meet interesting people through quick video conversations.
               No swiping, no endless chats - just real connections.
             </p>
 
-            <div className="grid md:grid-cols-3 gap-6 text-left">
+            {/* How it Works Section */}
+            <div className="max-w-4xl mx-auto">
+              <h2 className="text-2xl font-semibold text-gray-800 dark:text-white mb-8">
+                How It Works
+              </h2>
+              <div className="grid md:grid-cols-4 gap-8">
+                <div className="relative">
+                  <div className="bg-white/50 dark:bg-gray-800/50 rounded-xl backdrop-blur-sm p-6 h-full">
+                    <div className="absolute -top-4 left-1/2 -translate-x-1/2 w-8 h-8 bg-purple-600 text-white rounded-full flex items-center justify-center font-bold">
+                      1
+                    </div>
+                    <h3 className="text-lg font-semibold text-purple-600 dark:text-purple-400 mt-2 mb-3">
+                      Sign Up
+                    </h3>
+                    <p className="text-gray-600 dark:text-gray-300 text-sm">
+                      Quick sign in with Google. No lengthy forms or verification needed.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="relative">
+                  <div className="bg-white/50 dark:bg-gray-800/50 rounded-xl backdrop-blur-sm p-6 h-full">
+                    <div className="absolute -top-4 left-1/2 -translate-x-1/2 w-8 h-8 bg-purple-600 text-white rounded-full flex items-center justify-center font-bold">
+                      2
+                    </div>
+                    <h3 className="text-lg font-semibold text-purple-600 dark:text-purple-400 mt-2 mb-3">
+                      Get Matched
+                    </h3>
+                    <p className="text-gray-600 dark:text-gray-300 text-sm">
+                      Get matched with someone looking to meet new people.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="relative">
+                  <div className="bg-white/50 dark:bg-gray-800/50 rounded-xl backdrop-blur-sm p-6 h-full">
+                    <div className="absolute -top-4 left-1/2 -translate-x-1/2 w-8 h-8 bg-purple-600 text-white rounded-full flex items-center justify-center font-bold">
+                      3
+                    </div>
+                    <h3 className="text-lg font-semibold text-purple-600 dark:text-purple-400 mt-2 mb-3">
+                      15 Min Call
+                    </h3>
+                    <p className="text-gray-600 dark:text-gray-300 text-sm">
+                      Have a meaningful 15-minute video conversation. No pressure, just be yourself.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="relative">
+                  <div className="bg-white/50 dark:bg-gray-800/50 rounded-xl backdrop-blur-sm p-6 h-full">
+                    <div className="absolute -top-4 left-1/2 -translate-x-1/2 w-8 h-8 bg-purple-600 text-white rounded-full flex items-center justify-center font-bold">
+                      4
+                    </div>
+                    <h3 className="text-lg font-semibold text-purple-600 dark:text-purple-400 mt-2 mb-3">
+                      Connect
+                    </h3>
+                    <p className="text-gray-600 dark:text-gray-300 text-sm">
+                      If you both click, you have 5 minutes to chat or exchange contact.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Feature Cards */}
+            <div className="grid md:grid-cols-3 gap-6 text-left mt-12">
               <div className="p-6 bg-white/50 dark:bg-gray-800/50 rounded-xl backdrop-blur-sm">
                 <h3 className="text-lg font-semibold text-purple-600 dark:text-purple-400 mb-2">
                   ⏱️ Quick Connection
@@ -164,7 +229,7 @@ export default function Home() {
                   🎯 Smart Matching
                 </h3>
                 <p className="text-gray-600 dark:text-gray-300">
-                  Our algorithm pairs you with someone who shares your interests and values.
+                  Meet new people and discover unexpected connections through random matching.
                 </p>
               </div>
 
@@ -178,10 +243,11 @@ export default function Home() {
               </div>
             </div>
 
+            {/* Sign In Button */}
             {!user ? (
               <button
                 onClick={signInWithGoogle}
-                className="flex items-center gap-2 bg-white dark:bg-gray-800 text-gray-800 dark:text-white px-8 py-4 rounded-full shadow-lg hover:shadow-xl transition-all mx-auto"
+                className="flex items-center gap-2 bg-white dark:bg-gray-800 text-gray-800 dark:text-white px-8 py-4 rounded-full shadow-lg hover:shadow-xl transition-all mx-auto mt-8"
               >
                 <Image
                   src="https://www.google.com/favicon.ico"

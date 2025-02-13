@@ -9,7 +9,7 @@ import { stopMediaStream } from '../utils/media';
 export default function Layout({ children, title }: { children: React.ReactNode, title?: string }) {
     const { user, logout } = useAuth();
     const router = useRouter();
-    const pageTitle = title ? `${title} | CallMeMaybe` : 'CallMeMaybe - Quick Video Chats';
+    const pageTitle = title ? `${title} | Call Me Maybe` : 'Call Me Maybe - Quick Video Chats';
 
     useEffect(() => {
         const handleRouteChange = (url: string) => {
@@ -34,7 +34,7 @@ export default function Layout({ children, title }: { children: React.ReactNode,
                 <meta property="og:description" content="Connect with people through quick 15-minute video conversations. If you click, get 5 bonus minutes to exchange contacts!" />
                 <meta property="og:type" content="website" />
                 <meta property="og:image" content="/og-image.jpg" />
-                <meta property="og:url" content="https://callmemaybe.yourdomain.com" />
+                <meta property="og:url" content="https://ccallmemaybe.xyz" />
                 <meta name="twitter:card" content="summary_large_image" />
                 <meta name="theme-color" content="#7C3AED" />
                 <link rel="icon" href="/favicon.ico" />
