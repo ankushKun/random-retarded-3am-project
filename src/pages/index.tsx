@@ -57,25 +57,35 @@ export default function Home() {
         setLastStatusUpdate(new Date());
         setConnectionStatus('Connected');
 
-        if (statusData.status === 'queued' && statusData.totalInQueue >= 2) {
-          setConnectionStatus('Attempting to create match...');
-          try {
-            const matchResult = await createMatch();
-            console.log('Match creation result:', matchResult);
-            if (matchResult.sessionId) {
-              setConnectionStatus('Match found! Redirecting...');
-              router.push(`/call/${matchResult.sessionId}`);
-              return;
-            }
-          } catch (error) {
-            console.error('Match creation failed:', error);
-            setConnectionStatus('Match creation failed, retrying...');
-          }
-        }
+        // Handle different status cases
+        switch (statusData.status) {
+          case 'in_session':
+            setConnectionStatus('Active video call found, redirecting...');
+            router.push(`/call/${statusData.sessionId}`);
+            return;
 
-        if (statusData.status === 'in_session') {
-          setConnectionStatus('Active session found, redirecting...');
-          router.push(`/call/${statusData.sessionId}`);
+          case 'in_chat':
+            setConnectionStatus('Active chat found, redirecting...');
+            router.push(`/chat/${statusData.sessionId}`);
+            return;
+
+          case 'queued':
+            if (statusData.totalInQueue >= 2) {
+              setConnectionStatus('Attempting to create match...');
+              try {
+                const matchResult = await createMatch();
+                console.log('Match creation result:', matchResult);
+                if (matchResult.sessionId) {
+                  setConnectionStatus('Match found! Redirecting...');
+                  router.push(`/call/${matchResult.sessionId}`);
+                  return;
+                }
+              } catch (error) {
+                console.error('Match creation failed:', error);
+                setConnectionStatus('Match creation failed, retrying...');
+              }
+            }
+            break;
         }
       } catch (error) {
         console.error('Status check failed:', error);

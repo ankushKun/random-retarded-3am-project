@@ -115,7 +115,7 @@ export default function ChatPage() {
 
     // Add effect to handle session end
     useEffect(() => {
-        if (timeLeft <= 0) {
+        if (timeLeft && timeLeft <= 0) {
             router.push('/');
         }
     }, [timeLeft, router]);

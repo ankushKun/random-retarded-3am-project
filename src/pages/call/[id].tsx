@@ -14,7 +14,10 @@ export default function CallPage() {
     const { user } = useAuth();
     const [timeLeft, setTimeLeft] = useState(900); // 15 minutes in seconds
     const [error, setError] = useState<string | null>(null);
-    const [connectionStatus, setConnectionStatus] = useState('Initializing...');
+    const [connectionStatus, setConnectionStatus] = useState<{
+        type: 'connecting' | 'connected' | 'disconnected' | 'failed' | 'checking' | 'closed';
+        detail: string;
+    }>({ type: 'connecting', detail: 'Initializing...' });
 
     // PeerJS states
     const [peer, setPeer] = useState<Peer | null>(null);
@@ -97,7 +100,10 @@ export default function CallPage() {
             newPeer.on('open', async () => {
                 console.log('Peer connection opened:', myPeerId);
                 setPeer(newPeer);
-                setConnectionStatus('Connected to server');
+                setConnectionStatus({
+                    type: 'connected',
+                    detail: 'Connected'
+                });
 
                 // Set up local media stream
                 const stream = await setupMediaStream();
@@ -167,47 +173,138 @@ export default function CallPage() {
 
             newPeer.on('disconnected', () => {
                 console.log('Peer disconnected, attempting reconnect');
-                setConnectionStatus('Disconnected - Attempting to reconnect...');
+                setConnectionStatus({
+                    type: 'disconnected',
+                    detail: 'Connection interrupted - attempting to reconnect...'
+                });
                 newPeer.reconnect();
             });
 
             setPeer(newPeer);
         };
 
+        const updateConnectionStatus = (pc: RTCPeerConnection) => {
+            pc.oniceconnectionstatechange = () => {
+                console.log('ICE connection state:', pc.iceConnectionState);
+                switch (pc.iceConnectionState) {
+                    case 'checking':
+                        setConnectionStatus({
+                            type: 'checking',
+                            detail: 'Establishing connection...'
+                        });
+                        break;
+                    case 'connected':
+                        setConnectionStatus({
+                            type: 'connected',
+                            detail: 'Connected'
+                        });
+                        break;
+                    case 'completed':
+                        setConnectionStatus({
+                            type: 'connected',
+                            detail: 'Connection optimized'
+                        });
+                        break;
+                    case 'disconnected':
+                        setConnectionStatus({
+                            type: 'disconnected',
+                            detail: 'Connection interrupted - attempting to reconnect...'
+                        });
+                        break;
+                    case 'failed':
+                        setConnectionStatus({
+                            type: 'failed',
+                            detail: 'Connection failed - please refresh'
+                        });
+                        break;
+                    case 'closed':
+                        setConnectionStatus({
+                            type: 'closed',
+                            detail: 'Connection closed'
+                        });
+                        break;
+                }
+            };
+
+            // Monitor connection quality
+            if (pc.getStats) {
+                setInterval(async () => {
+                    try {
+                        const stats = await pc.getStats();
+                        let totalPacketsLost = 0;
+                        let totalPackets = 0;
+
+                        stats.forEach(stat => {
+                            if (stat.type === 'inbound-rtp' && 'packetsLost' in stat) {
+                                totalPacketsLost += stat.packetsLost as number;
+                                totalPackets += (stat.packetsReceived as number) + (stat.packetsLost as number);
+                            }
+                        });
+
+                        if (totalPackets > 0) {
+                            const lossRate = (totalPacketsLost / totalPackets) * 100;
+                            if (lossRate > 15) {
+                                setConnectionStatus(prev => ({
+                                    ...prev,
+                                    detail: 'Poor connection quality'
+                                }));
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Failed to get connection stats:', error);
+                    }
+                }, 5000);
+            }
+        };
+
         const setupCallHandlers = (call: MediaConnection) => {
             setCurrentCall(call);
-            setConnectionStatus('Call connecting...');
+            setConnectionStatus({
+                type: 'connecting',
+                detail: 'Connecting to peer...'
+            });
+
+            // Access the underlying RTCPeerConnection
+            if (call.peerConnection) {
+                updateConnectionStatus(call.peerConnection);
+            }
 
             call.on('stream', (remoteStream) => {
                 console.log('Received remote stream');
                 if (remoteVideoRef.current) {
                     remoteVideoRef.current.srcObject = remoteStream;
-                    setConnectionStatus('Connected');
-
-                    // Track remote media status changes
-                    remoteStream.getAudioTracks().forEach(track => {
-                        track.onmute = () => setRemoteIsMuted(true);
-                        track.onunmute = () => setRemoteIsMuted(false);
-                        setRemoteIsMuted(!track.enabled);
-                    });
-
-                    remoteStream.getVideoTracks().forEach(track => {
-                        track.onmute = () => setRemoteIsVideoOff(true);
-                        track.onunmute = () => setRemoteIsVideoOff(false);
-                        setRemoteIsVideoOff(!track.enabled);
-                    });
                 }
+
+                // Track remote media status changes
+                remoteStream.getAudioTracks().forEach(track => {
+                    track.onmute = () => setRemoteIsMuted(true);
+                    track.onunmute = () => setRemoteIsMuted(false);
+                    setRemoteIsMuted(!track.enabled);
+                });
+
+                remoteStream.getVideoTracks().forEach(track => {
+                    track.onmute = () => setRemoteIsVideoOff(true);
+                    track.onunmute = () => setRemoteIsVideoOff(false);
+                    setRemoteIsVideoOff(!track.enabled);
+                });
             });
 
             call.on('error', (err) => {
                 console.error('Call error:', err);
                 setError('Call connection failed');
+                setConnectionStatus({
+                    type: 'failed',
+                    detail: 'Call failed - please refresh'
+                });
                 cleanupMedia();
             });
 
             call.on('close', () => {
                 console.log('Call closed');
-                setConnectionStatus('Call ended');
+                setConnectionStatus({
+                    type: 'closed',
+                    detail: 'Call ended'
+                });
                 cleanupMedia();
             });
         };
@@ -475,11 +572,18 @@ export default function CallPage() {
 
                     {/* Status indicators */}
                     <div className="absolute top-4 left-4 flex gap-2">
-                        <div className={`text-sm px-3 py-1 rounded-lg ${error
-                            ? 'bg-red-500/90 text-white'
-                            : 'bg-gray-900/90 text-white'
+                        <div className={`text-sm px-3 py-1 rounded-lg flex items-center gap-2 ${error ? 'bg-red-500/90 text-white' :
+                                connectionStatus.type === 'connected' ? 'bg-green-500/90 text-white' :
+                                    connectionStatus.type === 'checking' ? 'bg-yellow-500/90 text-white' :
+                                        connectionStatus.type === 'failed' ? 'bg-red-500/90 text-white' :
+                                            'bg-gray-900/90 text-white'
                             }`}>
-                            {error || connectionStatus}
+                            <div className={`w-2 h-2 rounded-full ${connectionStatus.type === 'connected' ? 'bg-green-300' :
+                                    connectionStatus.type === 'checking' ? 'bg-yellow-300' :
+                                        connectionStatus.type === 'failed' ? 'bg-red-300' :
+                                            'bg-gray-300'
+                                }`} />
+                            {error || connectionStatus.detail}
                         </div>
                         {remoteIsMuted && (
                             <div className="bg-gray-900/90 text-white px-3 py-1 rounded-lg text-sm flex items-center gap-1">
