@@ -7,17 +7,6 @@ import { useRouter } from 'next/router';
 import { joinMatchmaking, getMatchmakingStatus, cancelMatchmaking, createMatch } from '../utils/api';
 import ProfileSetup from '../components/ProfileSetup';
 
-const geistSans = localFont({
-  src: "./fonts/GeistVF.woff",
-  variable: "--font-geist-sans",
-  weight: "100 900",
-});
-const geistMono = localFont({
-  src: "./fonts/GeistMonoVF.woff",
-  variable: "--font-geist-mono",
-  weight: "100 900",
-});
-
 type MatchmakingStatus = {
   status: 'idle' | 'queued' | 'in_session' | 'cooldown' | 'connecting' | 'error';
   timeLeft?: number;
