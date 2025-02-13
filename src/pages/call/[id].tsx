@@ -12,7 +12,7 @@ export default function CallPage() {
     const router = useRouter();
     const { id: sessionId } = router.query;
     const { user } = useAuth();
-    const [timeLeft, setTimeLeft] = useState(3600); // 1 hour in seconds
+    const [timeLeft, setTimeLeft] = useState(900); // 15 minutes in seconds
     const [error, setError] = useState<string | null>(null);
     const [connectionStatus, setConnectionStatus] = useState('Initializing...');
 
@@ -239,8 +239,8 @@ export default function CallPage() {
                     return;
                 }
 
-                if (status.timeLeft) {
-                    setTimeLeft(Math.floor(status.timeLeft / 1000));
+                if (status.videoTimeLeft) {
+                    setTimeLeft(Math.floor(status.videoTimeLeft / 1000));
                 }
             } catch (error) {
                 console.error('Session check failed:', error);
@@ -259,12 +259,11 @@ export default function CallPage() {
         if (timeLeft <= 0) {
             cleanupMedia();
 
-            // Update session with cooldown end time
+            // Update session status to chat phase
             if (sessionId) {
                 const sessionRef = doc(db, 'sessions', sessionId as string);
                 updateDoc(sessionRef, {
-                    status: 'cooldown',
-                    cooldownEnds: Timestamp.fromMillis(Date.now() + 30 * 60 * 1000) // 30 minutes
+                    status: 'chat'
                 }).catch(console.error);
             }
 

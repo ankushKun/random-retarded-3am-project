@@ -4,6 +4,14 @@ import Layout from '../../components/Layout';
 import { useAuth } from '../../contexts/AuthContext';
 import { db } from '../../config/firebase';
 import { doc, updateDoc, onSnapshot, arrayUnion, Timestamp } from 'firebase/firestore';
+import { getMatchmakingStatus } from '../../utils/api';
+
+// Add loading spinner component
+const LoadingSpinner = () => (
+    <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]">
+        <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-purple-600"></div>
+    </div>
+);
 
 interface Message {
     id: string;
@@ -21,6 +29,8 @@ export default function ChatPage() {
     const [partnerId, setPartnerId] = useState<string | null>(null);
     const [cooldownEnds, setCooldownEnds] = useState<Date | null>(null);
     const [timeLeft, setTimeLeft] = useState<number | null>(null);
+    // Add loading state
+    const [isLoading, setIsLoading] = useState(true);
 
     // Fetch session data and messages
     useEffect(() => {
@@ -46,6 +56,9 @@ export default function ChatPage() {
                     const cooldownEnd = sessionData.cooldownEnds.toDate();
                     setCooldownEnds(cooldownEnd);
                 }
+
+                // Set loading to false once we have the data
+                setIsLoading(false);
             }
         });
 
@@ -72,6 +85,40 @@ export default function ChatPage() {
 
         return () => clearInterval(timer);
     }, [cooldownEnds, router]);
+
+    // Add chat duration timer
+    useEffect(() => {
+        if (!user || !sessionId) return;
+
+        const checkSession = async () => {
+            try {
+                const status = await getMatchmakingStatus();
+
+                if (status.status === 'ended') {
+                    router.push('/');
+                    return;
+                }
+
+                if (status.chatTimeLeft) {
+                    setTimeLeft(Math.floor(status.chatTimeLeft / 1000));
+                }
+            } catch (error) {
+                console.error('Session check failed:', error);
+            }
+        };
+
+        const interval = setInterval(checkSession, 1000);
+        checkSession();
+
+        return () => clearInterval(interval);
+    }, [user, sessionId, router]);
+
+    // Add effect to handle session end
+    useEffect(() => {
+        if (timeLeft <= 0) {
+            router.push('/');
+        }
+    }, [timeLeft, router]);
 
     const sendMessage = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -112,61 +159,65 @@ export default function ChatPage() {
 
     return (
         <Layout>
-            <div className="max-w-2xl mx-auto min-h-[calc(100vh-4rem)] flex flex-col">
-                {/* Add cooldown timer at the top */}
-                {timeLeft && (
-                    <div className="bg-purple-600/10 dark:bg-purple-400/10 p-4 text-center">
-                        <p className="text-purple-600 dark:text-purple-400">
-                            Chat closes in {formatCooldownTime(timeLeft)}
-                        </p>
-                    </div>
-                )}
-
-                <div className="flex-1 p-4 overflow-y-auto space-y-4">
-                    {messages.map((msg) => (
-                        <div
-                            key={msg.id}
-                            className={`flex ${msg.senderId === user?.uid ? 'justify-end' : 'justify-start'}`}
-                        >
-                            <div
-                                className={`max-w-[80%] rounded-lg px-4 py-2 ${msg.senderId === user?.uid
-                                    ? 'bg-purple-600 text-white'
-                                    : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white'
-                                    }`}
-                            >
-                                <div>{msg.text}</div>
-                                {msg.timestamp && (
-                                    <div className={`text-xs mt-1 ${msg.senderId === user?.uid
-                                        ? 'text-purple-200'
-                                        : 'text-gray-500 dark:text-gray-400'
-                                        }`}>
-                                        {formatTime(msg.timestamp)}
-                                    </div>
-                                )}
-                            </div>
+            {isLoading ? (
+                <LoadingSpinner />
+            ) : (
+                <div className="max-w-2xl mx-auto min-h-[calc(100vh-4rem)] flex flex-col">
+                    {/* Add cooldown timer at the top */}
+                    {timeLeft && (
+                        <div className="bg-purple-600/10 dark:bg-purple-400/10 p-4 text-center">
+                            <p className="text-purple-600 dark:text-purple-400">
+                                Chat closes in {formatCooldownTime(timeLeft)}
+                            </p>
                         </div>
-                    ))}
-                </div>
+                    )}
 
-                <form onSubmit={sendMessage} className="p-4 border-t dark:border-gray-700">
-                    <div className="flex gap-2">
-                        <input
-                            type="text"
-                            value={message}
-                            onChange={(e) => setMessage(e.target.value)}
-                            placeholder="Type a message..."
-                            className="flex-1 rounded-full px-4 py-2 bg-gray-100 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-purple-600"
-                        />
-                        <button
-                            type="submit"
-                            className="bg-purple-600 hover:bg-purple-700 text-white rounded-full p-2 transition-colors"
-                            disabled={!message.trim()}
-                        >
-                            <SendIcon />
-                        </button>
+                    <div className="flex-1 p-4 overflow-y-auto space-y-4">
+                        {messages.map((msg) => (
+                            <div
+                                key={msg.id}
+                                className={`flex ${msg.senderId === user?.uid ? 'justify-end' : 'justify-start'}`}
+                            >
+                                <div
+                                    className={`max-w-[80%] rounded-lg px-4 py-2 ${msg.senderId === user?.uid
+                                        ? 'bg-purple-600 text-white'
+                                        : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white'
+                                        }`}
+                                >
+                                    <div>{msg.text}</div>
+                                    {msg.timestamp && (
+                                        <div className={`text-xs mt-1 ${msg.senderId === user?.uid
+                                            ? 'text-purple-200'
+                                            : 'text-gray-500 dark:text-gray-400'
+                                            }`}>
+                                            {formatTime(msg.timestamp)}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        ))}
                     </div>
-                </form>
-            </div>
+
+                    <form onSubmit={sendMessage} className="p-4 border-t dark:border-gray-700">
+                        <div className="flex gap-2">
+                            <input
+                                type="text"
+                                value={message}
+                                onChange={(e) => setMessage(e.target.value)}
+                                placeholder="Type a message..."
+                                className="flex-1 rounded-full px-4 py-2 bg-gray-100 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-purple-600"
+                            />
+                            <button
+                                type="submit"
+                                className="bg-purple-600 hover:bg-purple-700 text-white rounded-full p-2 transition-colors"
+                                disabled={!message.trim()}
+                            >
+                                <SendIcon />
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            )}
         </Layout>
     );
 }

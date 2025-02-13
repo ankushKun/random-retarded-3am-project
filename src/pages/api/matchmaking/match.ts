@@ -69,10 +69,11 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
                 transaction.set(sessionRef, {
                     participants: users.map(u => u.id),
                     startTime: FieldValue.serverTimestamp(),
-                    endTime: Timestamp.fromMillis(Date.now() + 60 * 60 * 1000), // 1 hour
-                    status: 'active',
-                    peerIds: {}, // Initialize empty peerIds object
-                    messages: [] // Initialize empty messages array
+                    videoEndTime: Timestamp.fromMillis(Date.now() + 15 * 60 * 1000), // 15 minutes
+                    chatEndTime: Timestamp.fromMillis(Date.now() + 20 * 60 * 1000), // 15 + 5 minutes
+                    status: 'video',
+                    peerIds: {},
+                    messages: []
                 });
 
                 // Update users' status

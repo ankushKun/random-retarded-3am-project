@@ -1,6 +1,7 @@
 import { NextApiResponse } from 'next';
 import { AuthenticatedRequest, authMiddleware } from '../../../middleware/authMiddleware';
 import { db } from '../../../config/firebase-admin';
+import { Timestamp } from 'firebase-admin/firestore';
 
 export default async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     if (req.method !== 'GET') {
@@ -22,38 +23,53 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
                 console.log('Session data:', sessionData);
 
                 if (sessionData) {
-                    if (sessionData.status === 'cooldown') {
-                        const cooldownEnds = sessionData.cooldownEnds.toDate();
-                        if (Date.now() < cooldownEnds.getTime()) {
-                            return res.status(200).json({
-                                status: 'in_cooldown',
-                                sessionId: userData.activeSession,
-                                partnerId: sessionData.participants.find((p: string) => p !== req.user.uid),
-                                cooldownEnds: cooldownEnds
-                            });
-                        } else {
-                            // Cooldown ended, clear session
-                            await db.collection('users').doc(req.user.uid).update({
-                                activeSession: null
-                            });
+                    const now = Date.now();
+                    const videoEndTime = sessionData.videoEndTime.toDate().getTime();
+                    const chatEndTime = sessionData.chatEndTime.toDate().getTime();
+
+                    if (now >= chatEndTime) {
+                        // Session has completely ended
+                        await db.collection('users').doc(req.user.uid).update({
+                            activeSession: null,
+                            lastSessionEnd: Timestamp.now()
+                        });
+
+                        // Delete the session if it's the last participant to leave
+                        const otherParticipant = await db.collection('users')
+                            .where('activeSession', '==', userData.activeSession)
+                            .get();
+
+                        if (otherParticipant.empty) {
+                            await db.collection('sessions').doc(userData.activeSession).delete();
                         }
-                    } else {
-                        const timeLeft = sessionData.endTime.toDate().getTime() - Date.now();
-                        console.log('Session time left:', timeLeft);
+
+                        return res.status(200).json({ status: 'ended' });
+                    }
+
+                    if (now >= videoEndTime) {
+                        // In chat phase
                         return res.status(200).json({
-                            status: 'in_session',
+                            status: 'in_chat',
                             sessionId: userData.activeSession,
                             partnerId: sessionData.participants.find((p: string) => p !== req.user.uid),
-                            timeLeft: Math.max(0, timeLeft),
-                            peerIds: sessionData.peerIds || {}
+                            chatTimeLeft: Math.max(0, chatEndTime - now)
                         });
                     }
+
+                    // In video phase
+                    return res.status(200).json({
+                        status: 'in_session',
+                        sessionId: userData.activeSession,
+                        partnerId: sessionData.participants.find((p: string) => p !== req.user.uid),
+                        videoTimeLeft: Math.max(0, videoEndTime - now),
+                        peerIds: sessionData.peerIds || {}
+                    });
                 }
             }
 
             // Check cooldown
             if (userData?.lastSessionEnd) {
-                const cooldownEnd = userData.lastSessionEnd.toDate().getTime() + 30 * 60 * 1000;
+                const cooldownEnd = userData.lastSessionEnd.toDate().getTime() + 5 * 60 * 1000;
                 if (Date.now() < cooldownEnd) {
                     return res.status(200).json({
                         status: 'cooldown',

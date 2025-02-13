@@ -19,7 +19,7 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
             }
 
             if (userData?.lastSessionEnd) {
-                const cooldownEnd = userData.lastSessionEnd.toDate().getTime() + 30 * 60 * 1000; // 30 minutes
+                const cooldownEnd = userData.lastSessionEnd.toDate().getTime() + 5 * 60 * 1000; // 5 minutes
                 if (Date.now() < cooldownEnd) {
                     return res.status(400).json({
                         error: 'User in cooldown',

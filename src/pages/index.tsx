@@ -18,13 +18,15 @@ const geistMono = localFont({
 });
 
 type MatchmakingStatus = {
-  status: 'idle' | 'queued' | 'in_session' | 'cooldown';
+  status: 'idle' | 'queued' | 'in_session' | 'cooldown' | 'connecting' | 'error';
   timeLeft?: number;
   sessionId?: string;
   cooldownEnd?: number;
   queuedAt?: Date;
   queuePosition?: number;
   totalInQueue?: number;
+  connectionStatus?: string;
+  lastUpdated?: number;
 };
 
 export default function Home() {
@@ -33,39 +35,52 @@ export default function Home() {
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<MatchmakingStatus>({ status: 'idle' });
+  const [lastStatusUpdate, setLastStatusUpdate] = useState<Date>(new Date());
+  const [connectionStatus, setConnectionStatus] = useState<string>('');
 
-  // Poll for status updates and try to create matches
+  const getTimeSinceUpdate = () => {
+    const seconds = Math.floor((new Date().getTime() - lastStatusUpdate.getTime()) / 1000);
+    if (seconds < 60) return `${seconds}s ago`;
+    return `${Math.floor(seconds / 60)}m ${seconds % 60}s ago`;
+  };
+
   useEffect(() => {
     if (!user) return;
 
     const checkStatus = async () => {
       try {
         console.log('Checking matchmaking status...');
+        setConnectionStatus('Checking status...');
         const statusData = await getMatchmakingStatus();
         console.log('Status received:', statusData);
         setStatus(statusData);
+        setLastStatusUpdate(new Date());
+        setConnectionStatus('Connected');
 
         if (statusData.status === 'queued' && statusData.totalInQueue >= 2) {
-          console.log('Attempting to create match with', statusData.totalInQueue, 'users in queue');
+          setConnectionStatus('Attempting to create match...');
           try {
             const matchResult = await createMatch();
             console.log('Match creation result:', matchResult);
             if (matchResult.sessionId) {
-              console.log('Match created, redirecting to call:', matchResult.sessionId);
+              setConnectionStatus('Match found! Redirecting...');
               router.push(`/call/${matchResult.sessionId}`);
               return;
             }
           } catch (error) {
             console.error('Match creation failed:', error);
+            setConnectionStatus('Match creation failed, retrying...');
           }
         }
 
         if (statusData.status === 'in_session') {
-          console.log('User in session, redirecting to:', statusData.sessionId);
+          setConnectionStatus('Active session found, redirecting...');
           router.push(`/call/${statusData.sessionId}`);
         }
       } catch (error) {
         console.error('Status check failed:', error);
+        setConnectionStatus('Connection lost, retrying...');
+        setError('Failed to connect to server');
       }
     };
 
@@ -144,6 +159,23 @@ export default function Home() {
   return (
     <Layout>
       <div className="min-h-[calc(100vh-4rem)] flex flex-col items-center justify-center p-4">
+        <div className="fixed top-0 left-0 right-0 bg-gray-100 dark:bg-gray-800 p-2 text-sm">
+          <div className="max-w-2xl mx-auto flex justify-between items-center">
+            <div className="flex items-center gap-2">
+              <div className={`w-2 h-2 rounded-full ${connectionStatus === 'Connected'
+                ? 'bg-green-500'
+                : connectionStatus.includes('failed')
+                  ? 'bg-red-500'
+                  : 'bg-yellow-500'
+                }`} />
+              <span className="text-gray-600 dark:text-gray-300">{connectionStatus}</span>
+            </div>
+            <div className="text-gray-500 dark:text-gray-400 text-xs">
+              Last updated: {getTimeSinceUpdate()}
+            </div>
+          </div>
+        </div>
+
         {error && (
           <div className="mb-4 p-4 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-lg">
             {error}
@@ -168,7 +200,7 @@ export default function Home() {
           <div className="text-center">
             <div className="w-16 h-16 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mb-4" />
             <p className="text-gray-600 dark:text-gray-300">
-              Finding your match...
+              {connectionStatus || 'Finding your match...'}
             </p>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
               Queue time: {status.queuedAt &&
