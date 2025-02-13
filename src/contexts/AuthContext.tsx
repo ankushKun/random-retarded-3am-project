@@ -3,7 +3,9 @@ import {
     User,
     signInWithPopup,
     signOut,
-    onAuthStateChanged
+    onAuthStateChanged,
+    createUserWithEmailAndPassword,
+    signInWithEmailAndPassword
 } from 'firebase/auth';
 import { auth, googleProvider, db } from '../config/firebase';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
@@ -21,6 +23,8 @@ interface AuthContextType {
     logout: () => Promise<void>;
     userProfile: UserProfile | null;
     profileComplete: boolean;
+    signInWithEmail: (email: string, password: string) => Promise<void>;
+    signUpWithEmail: (email: string, password: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
@@ -92,11 +96,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
     };
 
+    const signInWithEmail = async (email: string, password: string) => {
+        try {
+            await signInWithEmailAndPassword(auth, email, password);
+        } catch (error: any) {
+            console.error('Error signing in with email:', error);
+            if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+                throw new Error('Invalid email or password');
+            }
+            throw error;
+        }
+    };
+
+    const signUpWithEmail = async (email: string, password: string) => {
+        try {
+            await createUserWithEmailAndPassword(auth, email, password);
+        } catch (error: any) {
+            console.error('Error signing up with email:', error);
+            if (error.code === 'auth/email-already-in-use') {
+                throw new Error('Email already in use');
+            }
+            throw error;
+        }
+    };
+
     return (
         <AuthContext.Provider value={{
             user,
             loading,
             signInWithGoogle,
+            signInWithEmail,
+            signUpWithEmail,
             logout,
             userProfile,
             profileComplete

@@ -53,9 +53,9 @@ export default function Layout({ children, title }: { children: React.ReactNode,
                             <div className="flex items-center gap-4">
                                 <Link
                                     href="/profile"
-                                    className="text-gray-600 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400"
+                                    className="flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400"
                                 >
-                                    {user.photoURL && (
+                                    {user.photoURL ? (
                                         <Image
                                             src={user.photoURL}
                                             alt="Profile"
@@ -63,7 +63,12 @@ export default function Layout({ children, title }: { children: React.ReactNode,
                                             height={32}
                                             className="rounded-full"
                                         />
+                                    ) : (
+                                        <div className="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center text-white">
+                                            {user.email?.[0].toUpperCase() || 'U'}
+                                        </div>
                                     )}
+                                    <span className="hidden sm:inline">Profile</span>
                                 </Link>
                                 <button
                                     onClick={logout}

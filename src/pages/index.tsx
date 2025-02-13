@@ -6,6 +6,7 @@ import Layout from '../components/Layout';
 import { useRouter } from 'next/router';
 import { joinMatchmaking, getMatchmakingStatus, cancelMatchmaking, createMatch } from '../utils/api';
 import ProfileSetup from '../components/ProfileSetup';
+import Link from 'next/link';
 
 type MatchmakingStatus = {
   status: 'idle' | 'queued' | 'in_session' | 'cooldown' | 'connecting' | 'error';
@@ -149,6 +150,90 @@ export default function Home() {
               No swiping, no endless chats - just real connections.
             </p>
 
+            {/* Primary Action Button */}
+            {user ? (
+              <div className="flex flex-col items-center gap-4 my-12">
+                <div className="flex flex-col items-center gap-2">
+                  <div className="text-sm text-gray-600 dark:text-gray-300 mb-2">
+                    {status.totalInQueue === 1 ? (
+                      '1 person in queue'
+                    ) : (
+                      `${status.totalInQueue || 0} people in queue`
+                    )}
+                  </div>
+
+                  <button
+                    onClick={isSearching ? cancelSearch : startMatching}
+                    disabled={isRedirecting}
+                    className="transform hover:scale-105 transition-all duration-200 bg-gradient-to-r from-purple-600 to-pink-500 text-white text-xl font-semibold px-12 py-6 rounded-2xl shadow-lg hover:shadow-2xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-3"
+                  >
+                    {isSearching ? (
+                      <>
+                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
+                        Finding a match...
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-2xl">🎯</span>
+                        Find a Match
+                      </>
+                    )}
+                  </button>
+
+                  {isSearching && (
+                    <div className="flex flex-col items-center gap-2 mt-4">
+                      <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300">
+                        <div className={`h-2 w-2 rounded-full ${status.status === 'error'
+                          ? 'bg-red-500'
+                          : status.status === 'queued'
+                            ? 'bg-green-500'
+                            : 'bg-yellow-500'
+                          }`} />
+                        <span>{connectionStatus || 'Connecting...'}</span>
+                      </div>
+                      {status.status === 'queued' && status.queuePosition && (
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          Your position: {status.queuePosition} of {status.totalInQueue}
+                        </p>
+                      )}
+                      <button
+                        onClick={cancelSearch}
+                        className="text-sm text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 mt-2"
+                      >
+                        Cancel matching
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {error && (
+                  <p className="text-red-500 dark:text-red-400">{error}</p>
+                )}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-6 my-12">
+                <button
+                  onClick={signInWithGoogle}
+                  className="transform hover:scale-105 transition-all duration-200 bg-gradient-to-r from-purple-600 to-pink-500 text-white px-12 py-6 rounded-2xl shadow-lg hover:shadow-2xl flex items-center gap-3"
+                >
+                  <Image
+                    src="https://www.google.com/favicon.ico"
+                    alt="Google"
+                    width={24}
+                    height={24}
+                    className="bg-white rounded-full p-1"
+                  />
+                  <span className="text-xl font-semibold">Sign in with Google</span>
+                </button>
+                <Link
+                  href="/email"
+                  className="text-lg text-gray-600 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 underline decoration-dotted"
+                >
+                  Or sign in with email
+                </Link>
+              </div>
+            )}
+
             {/* How it Works Section */}
             <div className="max-w-4xl mx-auto">
               <h2 className="text-2xl font-semibold text-gray-800 dark:text-white mb-8">
@@ -242,77 +327,6 @@ export default function Home() {
                 </p>
               </div>
             </div>
-
-            {/* Sign In Button */}
-            {!user ? (
-              <button
-                onClick={signInWithGoogle}
-                className="flex items-center gap-2 bg-white dark:bg-gray-800 text-gray-800 dark:text-white px-8 py-4 rounded-full shadow-lg hover:shadow-xl transition-all mx-auto mt-8"
-              >
-                <Image
-                  src="https://www.google.com/favicon.ico"
-                  alt="Google"
-                  width={20}
-                  height={20}
-                />
-                <span className="text-lg">Start Your Journey</span>
-              </button>
-            ) : (
-              <div className="space-y-6">
-                {error && (
-                  <div className="p-4 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-lg">
-                    {error}
-                  </div>
-                )}
-
-                {status.status === 'cooldown' && status.timeLeft && (
-                  <div className="text-center">
-                    <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">
-                      Cooldown Period
-                    </h2>
-                    <p className="text-gray-600 dark:text-gray-300 mb-4">
-                      You can start a new match in:
-                    </p>
-                    <div className="text-4xl font-bold text-purple-600 dark:text-purple-400">
-                      {formatTime(status.timeLeft)}
-                    </div>
-                  </div>
-                )}
-
-                {status.status === 'queued' && (
-                  <div className="text-center">
-                    <div className="w-16 h-16 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mb-4 mx-auto" />
-                    <p className="text-gray-600 dark:text-gray-300">
-                      {connectionStatus || 'Finding your match...'}
-                    </p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
-                      Queue time: {status.queuedAt &&
-                        formatTime(Date.now() - new Date(status.queuedAt).getTime())
-                      }
-                    </p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                      Position: {status.queuePosition} of {status.totalInQueue} in queue
-                    </p>
-                    <button
-                      onClick={cancelSearch}
-                      className="mt-6 px-6 py-2 text-sm bg-red-500 hover:bg-red-600 text-white rounded-full transition-colors"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                )}
-
-                {status.status === 'idle' && (
-                  <button
-                    onClick={startMatching}
-                    disabled={isSearching}
-                    className={`bg-purple-600 hover:bg-purple-700 text-white px-8 py-4 rounded-full shadow-lg hover:shadow-xl transition-all text-lg mx-auto block ${isSearching ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  >
-                    Start Matching
-                  </button>
-                )}
-              </div>
-            )}
           </div>
         </div>
       </div>
