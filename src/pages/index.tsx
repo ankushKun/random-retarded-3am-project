@@ -660,9 +660,9 @@ export default function Home() {
       </div>
       {renderMainContent()}
 
-      {/* <div className="fixed bottom-4 right-4 flex gap-4">
+      <div className="fixed bottom-4 right-4 flex gap-4">
         <a
-          href="https://github.com/ankushKun/random-retarded-3am-project"
+          href="https://github.com/aryanshi564"
           target="_blank"
           rel="noopener noreferrer"
           className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors"
@@ -670,7 +670,7 @@ export default function Home() {
         >
           <FaGithub size={24} />
         </a>
-        <a
+        {/* <a
           href="https://x.com/ankushKun_"
           target="_blank"
           rel="noopener noreferrer"
@@ -678,8 +678,8 @@ export default function Home() {
           title="Follow on X"
         >
           <FaXTwitter size={24} />
-        </a>
-      </div> */}
+        </a> */}
+      </div>
     </Layout>
   );
 }
