@@ -231,23 +231,40 @@ export default function Home() {
     };
   }, [user]);
 
-  // Automatically perform matchmaking if enough users are in queue
+  // Automatically call the match API if enough users are waiting
   useEffect(() => {
     if (!user) return;
-    // Only trigger if the user is queued, the total queue is at least 2, and this user is first
-    if (status.status === 'queued' && status.totalInQueue && status.totalInQueue >= 2 && status.queuePosition === 1) {
-      if (!matchmakingCalled.current) {
-        matchmakingCalled.current = true;
-        console.log("Triggering matchmaking as front of queue");
-        createMatch()
-          .then((response) => console.log("Match response:", response))
-          .catch((err) => {
-            console.error("Error in matchmaking:", err);
-            matchmakingCalled.current = false; // Allow retry on error
-          });
-      }
-    } else {
-      matchmakingCalled.current = false;
+    if (
+      status.status === 'queued' &&
+      status.totalInQueue &&
+      status.totalInQueue >= 2 &&
+      !matchmakingCalled.current
+    ) {
+      matchmakingCalled.current = true;
+      console.log("Automatically calling createMatch API");
+      createMatch()
+        .then((response) => {
+          console.log("Match API response:", response);
+          if (response.status === 'success' && response.matches && Array.isArray(response.matches)) {
+            // Find the match that includes the current user
+            const matchForUser = response.matches.find((match: { participants: string[] }) =>
+              match.participants.includes(user.uid)
+            );
+            if (matchForUser) {
+              setStatus((prev) => ({
+                ...prev,
+                status: 'in_session',
+                sessionId: matchForUser.sessionId
+              }));
+            }
+          }
+        })
+        .catch((error) => {
+          console.error("Error calling match API:", error);
+        })
+        .finally(() => {
+          matchmakingCalled.current = false;
+        });
     }
   }, [user, status]);
 

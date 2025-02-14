@@ -32,32 +32,39 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
                     return { status: 'not_enough_users' };
                 }
 
-                // Select the first two waiting users (you can choose a different matching strategy here)
-                const matchedPair = waitingUsers.slice(0, 2);
+                // Loop through waiting users in pairs and create a match for each pair
+                const matchesResults = [];
+                for (let i = 0; i < waitingUsers.length - 1; i += 2) {
+                    const matchedPair = waitingUsers.slice(i, i + 2);
 
-                // Create a new session for the matched pair
-                const sessionRef = db.collection('sessions').doc();
-                transaction.set(sessionRef, {
-                    participants: matchedPair.map(u => u.id),
-                    startTime: FieldValue.serverTimestamp(),
-                    videoEndTime: Timestamp.fromMillis(Date.now() + 15 * 60 * 1000), // 15 minutes
-                    chatEndTime: Timestamp.fromMillis(Date.now() + 20 * 60 * 1000), // 15 + 5 minutes
-                    status: 'video',
-                    peerIds: {},
-                    messages: []
-                });
+                    // Create a new session for the matched pair
+                    const sessionRef = db.collection('sessions').doc();
+                    transaction.set(sessionRef, {
+                        participants: matchedPair.map(u => u.id),
+                        startTime: FieldValue.serverTimestamp(),
+                        videoEndTime: Timestamp.fromMillis(Date.now() + 15 * 60 * 1000), // 15 minutes
+                        chatEndTime: Timestamp.fromMillis(Date.now() + 20 * 60 * 1000), // 15 + 5 minutes
+                        status: 'video',
+                        peerIds: {},
+                        messages: []
+                    });
 
-                // Update each user's status and remove them from the matchmaking queue
-                for (const user of matchedPair) {
-                    const userRef = db.collection('users').doc(user.id);
-                    transaction.update(userRef, { activeSession: sessionRef.id });
-                    transaction.delete(db.collection('matchmaking_queue').doc(user.id));
+                    // Update each user's status and remove them from the matchmaking queue
+                    for (const user of matchedPair) {
+                        const userRef = db.collection('users').doc(user.id);
+                        transaction.update(userRef, { activeSession: sessionRef.id });
+                        transaction.delete(db.collection('matchmaking_queue').doc(user.id));
+                    }
+
+                    matchesResults.push({
+                        sessionId: sessionRef.id,
+                        participants: matchedPair.map(u => u.id)
+                    });
                 }
 
                 return {
                     status: 'success',
-                    sessionId: sessionRef.id,
-                    participants: matchedPair.map(u => u.id)
+                    matches: matchesResults
                 };
             });
 
