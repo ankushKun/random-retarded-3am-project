@@ -330,8 +330,11 @@ export default function Home() {
           </div>
         </div>
         {status.status === 'queued' && (
-          <div className="text-sm text-gray-400">
-            Your position: {status.queuePosition} of {status.totalInQueue}
+          <div className="flex flex-col items-center mt-4">
+            <QueueRadar />
+            <div className="text-sm text-gray-400 mt-2">
+              Your position: {status.queuePosition} of {status.totalInQueue}
+            </div>
           </div>
         )}
       </div>
@@ -678,5 +681,94 @@ export default function Home() {
         </a>
       </div>
     </Layout>
+  );
+}
+
+// New RadarAnimation component to display a radar scanning animation
+function RadarAnimation() {
+  return (
+    <div className="radar-container">
+      <div className="radar-circle"></div>
+      <div className="radar-sweep"></div>
+      <style jsx>{`
+        .radar-container {
+          position: relative;
+          width: 40px;
+          height: 40px;
+          margin: 0 auto;
+        }
+        .radar-circle {
+          width: 100%;
+          height: 100%;
+          border: 2px solid #9f7aea;
+          border-radius: 50%;
+          opacity: 0.5;
+        }
+        .radar-sweep {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          border-radius: 50%;
+          background: conic-gradient(from 0deg, transparent 0deg, #9f7aea 30deg, transparent 60deg);
+          animation: sweep 2s linear infinite;
+        }
+        @keyframes sweep {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+// New QueueRadar component for a cool radar animation when user is in queue
+function QueueRadar() {
+  return (
+    <div className="queue-radar-container">
+      <div className="queue-radar">
+        <div className="radar-dot"></div>
+      </div>
+      <style jsx>{`
+        .queue-radar-container {
+          position: relative;
+          width: 200px;
+          height: 200px;
+          margin: 0 auto;
+        }
+        .queue-radar {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          border: 4px solid #9f7aea;
+          border-radius: 50%;
+          animation: pulse 2s ease-out infinite;
+          opacity: 0.7;
+        }
+        .radar-dot {
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          width: 10px;
+          height: 10px;
+          background: #9f7aea;
+          border-radius: 50%;
+          transform: translate(-50%, -50%);
+        }
+        @keyframes pulse {
+          0% {
+            transform: scale(0.8);
+            opacity: 1;
+          }
+          100% {
+            transform: scale(1.5);
+            opacity: 0;
+          }
+        }
+      `}</style>
+    </div>
   );
 }
