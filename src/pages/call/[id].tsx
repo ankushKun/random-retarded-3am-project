@@ -795,6 +795,32 @@ export default function CallPage() {
         );
     }
 
+    // Add this useEffect to subscribe to session updates
+    useEffect(() => {
+        // Ensure we have a valid session id from the router query
+        if (!router.query.id) return;
+
+        const sessionId = router.query.id as string;
+        const sessionDocRef = doc(db, 'sessions', sessionId);
+
+        // Subscribe to realtime updates for the session document
+        const unsubscribeSession = onSnapshot(sessionDocRef, (docSnap) => {
+            if (docSnap.exists()) {
+                const sessionData = docSnap.data();
+                // Update your call/chats related state using the sessionData.
+                // For example:
+                setConnectionStatus(sessionData.status); // assuming you maintain call status in state
+                setPartnerPeerId(sessionData.peerIds?.[sessionData.partnerId] || null); // update the list of current peer IDs
+
+                // If you have a chat subcollection or chat messages saved in the session, update them accordingly:
+                // setChatMessages(sessionData.chatMessages || []);
+            }
+        });
+
+        // Clean up the subscription on unmount
+        return () => unsubscribeSession();
+    }, [router.query.id]);
+
     return (
         <Layout>
             <div className="min-h-[calc(100vh-4rem)] bg-gray-900 relative">

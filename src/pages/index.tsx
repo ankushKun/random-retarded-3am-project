@@ -8,7 +8,7 @@ import { joinMatchmaking, getMatchmakingStatus, cancelMatchmaking, createMatch, 
 import ProfileSetup from '../components/ProfileSetup';
 import Link from 'next/link';
 import { FaGithub, FaXTwitter } from 'react-icons/fa6';
-import { doc, onSnapshot, collection, query, where, orderBy } from 'firebase/firestore';
+import { doc, onSnapshot, collection, query, where, orderBy, deleteDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 
 type MatchmakingStatus = {
@@ -147,19 +147,30 @@ export default function Home() {
     });
     unsubscribes.push(unsubscribeQueue);
 
-    // Subscribe to sessions with "video" status to update the active calls (total users) count.
+    // Subscribe to sessions that are in video or chat phase.
     const sessionsQuery = query(
       collection(db, 'sessions'),
-      where('status', '==', 'video')
+      where('status', 'in', ['video', 'chat'])
     );
     const unsubscribeSessions = onSnapshot(sessionsQuery, (snapshot) => {
-      let totalUsersInCall = 0;
-      snapshot.docs.forEach((docSnap) => {
-        const data = docSnap.data();
-        if (data?.participants && Array.isArray(data.participants)) {
-          totalUsersInCall += data.participants.length;
-        }
-      });
+      let activeSessionsCount = snapshot.docs.length;
+      console.log("Active sessions count:", activeSessionsCount);
+      // snapshot.docs.forEach((docSnap) => {
+      //   const data = docSnap.data();
+      //   if (data.chatEndTime) {
+      //     const chatEndTime = data.chatEndTime.toDate().getTime();
+      //     const now = Date.now();
+      //     if (chatEndTime < now) {
+      //       // Session has expired, remove it from Firestore
+      //       deleteDoc(docSnap.ref).catch((err) =>
+      //         console.error('Failed to delete expired session:', err)
+      //       );
+      //       return; // Skip counting this expired session
+      //     }
+      //   }
+      //   activeSessionsCount++;
+      // });
+      const totalUsersInCall = activeSessionsCount * 2;
       setStatus((prev) => ({ ...prev, activeCallsCount: totalUsersInCall }));
     });
     unsubscribes.push(unsubscribeSessions);

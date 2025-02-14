@@ -15,8 +15,8 @@ service cloud.firestore {
 
     // Session rules
     match /sessions/{sessionId} {
-      allow read: if request.auth != null && 
-        resource.data.participants.hasAny([request.auth.uid]);
+      allow read: if request.auth != null &&
+        (resource.data.status in ['video', 'chat'] || resource.data.participants.hasAny([request.auth.uid]));
       
       allow update: if request.auth != null && 
         resource.data.participants.hasAny([request.auth.uid]) &&
