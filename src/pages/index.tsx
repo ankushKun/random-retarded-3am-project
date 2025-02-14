@@ -27,6 +27,56 @@ type MatchmakingStatus = {
   activeCallsCount?: number;
 };
 
+function FallingHearts() {
+  const hearts = Array.from({ length: 20 });
+  return (
+    <>
+      <div className="falling-hearts opacity-40">
+        {hearts.map((_, idx) => (
+          <span
+            key={idx}
+            className="heart"
+            style={{
+              animationDelay: `${Math.random() * 5}s`,
+              left: `${Math.random() * 100}%`
+            }}
+          >
+            ❤️
+          </span>
+        ))}
+      </div>
+      <style jsx>{`
+        .falling-hearts {
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          pointer-events: none;
+          overflow: hidden;
+          z-index: 9999; // Ensure hearts appear over content
+        }
+        .heart {
+          position: absolute;
+          top: -50px;
+          font-size: 2rem;
+          animation: fall 10s linear infinite;
+        }
+        @keyframes fall {
+          0% {
+            transform: translateY(0) rotate(0deg);
+            opacity: 1;
+          }
+          100% {
+            transform: translateY(110vh) rotate(360deg);
+            opacity: 0;
+          }
+        }
+      `}</style>
+    </>
+  );
+}
+
 export default function Home() {
   const { user, signInWithGoogle, profileComplete } = useAuth();
   const router = useRouter();
@@ -555,6 +605,7 @@ export default function Home() {
   if (!user) {
     return (
       <Layout title="Welcome">
+        <FallingHearts />
         {renderMainContent()}
       </Layout>
     );
@@ -570,6 +621,7 @@ export default function Home() {
 
   return (
     <Layout>
+      <FallingHearts />
       <div className="fixed top-0 left-0 right-0 bg-gray-100 dark:bg-gray-800 p-2 text-sm">
         <div className="max-w-2xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-2">
