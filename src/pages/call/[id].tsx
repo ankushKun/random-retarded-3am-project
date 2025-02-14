@@ -673,7 +673,7 @@ export default function CallPage() {
         return (
             <div className="relative">
                 <button
-                    className="p-4 rounded-full bg-gray-800 hover:bg-gray-700 text-white transition-colors"
+                    className="p-4 rounded-full bg-gray-800 hover:bg-gray-700 !text-white transition-colors"
                     title="Switch Camera"
                     onClick={() => setIsCameraSelectorOpen(!isCameraSelectorOpen)}
                 >
@@ -694,7 +694,7 @@ export default function CallPage() {
                                         switchCamera(device.deviceId);
                                         setIsCameraSelectorOpen(false);
                                     }}
-                                    className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-700 ${selectedCamera === device.deviceId ? 'bg-gray-700' : ''
+                                    className={`w-full px-4 py-2 text-left text-sm text-white hover:bg-gray-700 ${selectedCamera === device.deviceId ? 'bg-gray-700' : ''
                                         }`}
                                 >
                                     {device.label || `Camera ${devices.indexOf(device) + 1}`}
@@ -957,7 +957,7 @@ export default function CallPage() {
                                     value={message}
                                     onChange={(e) => setMessage(e.target.value)}
                                     placeholder="Type a message..."
-                                    className="flex-1 rounded-full px-4 py-2 bg-gray-100 dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-purple-600"
+                                    className="flex-1 rounded-full text-white px-4 py-2 bg-gray-100 dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-purple-600"
                                 />
                                 <button
                                     type="submit"
