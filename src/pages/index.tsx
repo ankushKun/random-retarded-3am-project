@@ -312,7 +312,7 @@ export default function Home() {
     return (
       <div className="text-center space-y-2 mt-4">
         <div className="flex justify-center space-x-8">
-          <div className="bg-gray-800/50 rounded-lg px-6 py-3">
+          <div className="dark:bg-gray-800/50 bg-white rounded-lg px-6 py-3">
             <div className="text-2xl font-bold text-purple-500">
               {status.totalInQueue || 0}
             </div>
@@ -320,7 +320,7 @@ export default function Home() {
               in queue
             </div>
           </div>
-          <div className="bg-gray-800/50 rounded-lg px-6 py-3">
+          <div className="dark:bg-gray-800/50 bg-white rounded-lg px-6 py-3">
             <div className="text-2xl font-bold text-purple-500">
               {status.activeCallsCount || 0}
             </div>
