@@ -1,6 +1,6 @@
 import Image from "next/image";
 import localFont from "next/font/local";
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import Layout from '../components/Layout';
 import { useRouter } from 'next/router';
@@ -8,6 +8,8 @@ import { joinMatchmaking, getMatchmakingStatus, cancelMatchmaking, createMatch, 
 import ProfileSetup from '../components/ProfileSetup';
 import Link from 'next/link';
 import { FaGithub, FaXTwitter } from 'react-icons/fa6';
+import { doc, onSnapshot, collection, query, where, orderBy } from 'firebase/firestore';
+import { db } from '../config/firebase';
 
 type MatchmakingStatus = {
   status: 'idle' | 'queued' | 'in_session' | 'cooldown' | 'connecting' | 'error' | 'matched';
@@ -35,6 +37,9 @@ export default function Home() {
   const [connectionStatus, setConnectionStatus] = useState<string>('');
   const [isRedirecting, setIsRedirecting] = useState(false);
 
+  // Automatically perform matchmaking if enough users are in queue
+  const matchmakingCalled = useRef(false);
+
   useEffect(() => {
     const { cleanup } = router.query;
     if (cleanup === 'true') {
@@ -52,9 +57,10 @@ export default function Home() {
     return `${Math.floor(seconds / 60)}m ${seconds % 60}s ago`;
   };
 
+  // Removed polling useEffect that periodically called getMatchmakingStatus
+  /*
   useEffect(() => {
     if (!user) return;
-
     const checkStatus = async () => {
       try {
         if (isRedirecting) return;
@@ -67,48 +73,7 @@ export default function Home() {
         setLastStatusUpdate(new Date());
         setConnectionStatus('Connected');
 
-        switch (statusData.status) {
-          case 'in_session':
-            setStatus({
-              ...statusData,
-              status: 'in_session',
-              sessionId: statusData.sessionId,
-              partnerId: statusData.partnerId,
-              partnerName: statusData.partnerName
-            });
-            setConnectionStatus('Match Found');
-            return;
-
-          case 'in_chat':
-            setIsRedirecting(true);
-            setConnectionStatus('Active chat found, redirecting...');
-            await router.push(`/chat/${statusData.sessionId}`);
-            return;
-
-          case 'queued':
-            if (statusData.totalInQueue >= 2) {
-              setConnectionStatus('Attempting to create match...');
-              try {
-                const matchResult = await createMatch();
-                console.log('Match creation result:', matchResult);
-                if (matchResult.sessionId) {
-                  setStatus({
-                    ...statusData,
-                    status: 'matched',
-                    sessionId: matchResult.sessionId,
-                    partnerId: matchResult.partnerId,
-                    partnerName: matchResult.partnerName
-                  });
-                  setConnectionStatus('Match found!');
-                  return;
-                }
-              } catch (error) {
-                console.error('Match creation failed:', error);
-                setConnectionStatus('Match creation failed, retrying...');
-              }
-            }
-            break;
-        }
+        // ... processing API response with switch-case etc.
       } catch (error) {
         console.error('Status check failed:', error);
         setConnectionStatus('Connection lost, retrying...');
@@ -124,6 +89,106 @@ export default function Home() {
       setIsRedirecting(false);
     };
   }, [user, router, isRedirecting]);
+  */
+
+  useEffect(() => {
+    if (!user) return;
+
+    // Set initial connection message
+    setConnectionStatus('Connecting...');
+    // Create an array to track all unsubscribe functions
+    const unsubscribes: Array<() => void> = [];
+
+    // Subscribe to the user's Firestore document to check if they have an active session
+    const userDocRef = doc(db, 'users', user.uid);
+    const unsubscribeUser = onSnapshot(userDocRef, (docSnap) => {
+      const userData = docSnap.data();
+      if (userData?.activeSession) {
+        // If an active session exists, update status accordingly
+        setStatus((prev) => ({ ...prev, status: 'in_session', sessionId: userData.activeSession }));
+        setConnectionStatus('Match Found');
+      } else {
+        // Only override if not already "in_session"
+        setStatus((prev) => (prev.status !== 'in_session' ? { ...prev, status: 'idle', sessionId: undefined } : prev));
+      }
+    });
+    unsubscribes.push(unsubscribeUser);
+
+    // Subscribe to the current user's matchmaking queue document (if exists)
+    const userQueueRef = doc(db, 'matchmaking_queue', user.uid);
+    const unsubscribeUserQueue = onSnapshot(userQueueRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setStatus((prev) => ({ ...prev, status: 'queued', queuedAt: data.joinedAt.toDate() }));
+        setConnectionStatus('Queued');
+      } else {
+        // If the user is not in the queue and not in a session, set status to idle
+        setStatus((prev) => (prev.status !== 'in_session' ? { ...prev, status: 'idle' } : prev));
+      }
+    });
+    unsubscribes.push(unsubscribeUserQueue);
+
+    // Subscribe to the entire matchmaking_queue collection (filtered to waiting users)
+    // to update the total in queue and the user's position in real time.
+    const queueQuery = query(
+      collection(db, 'matchmaking_queue'),
+      where('status', '==', 'waiting'),
+      orderBy('joinedAt')
+    );
+    const unsubscribeQueue = onSnapshot(queueQuery, (snapshot) => {
+      const totalInQueue = snapshot.size;
+      let queuePosition: number | undefined = undefined;
+      snapshot.docs.forEach((docSnap, index) => {
+        if (docSnap.id === user.uid) {
+          queuePosition = index + 1;
+        }
+      });
+      setStatus((prev) => ({ ...prev, totalInQueue, queuePosition }));
+    });
+    unsubscribes.push(unsubscribeQueue);
+
+    // Subscribe to sessions with "video" status to update the active calls (total users) count.
+    const sessionsQuery = query(
+      collection(db, 'sessions'),
+      where('status', '==', 'video')
+    );
+    const unsubscribeSessions = onSnapshot(sessionsQuery, (snapshot) => {
+      let totalUsersInCall = 0;
+      snapshot.docs.forEach((docSnap) => {
+        const data = docSnap.data();
+        if (data?.participants && Array.isArray(data.participants)) {
+          totalUsersInCall += data.participants.length;
+        }
+      });
+      setStatus((prev) => ({ ...prev, activeCallsCount: totalUsersInCall }));
+    });
+    unsubscribes.push(unsubscribeSessions);
+
+    // Clean up all subscriptions when the component unmounts
+    return () => {
+      unsubscribes.forEach((unsub) => unsub());
+    };
+  }, [user]);
+
+  // Automatically perform matchmaking if enough users are in queue
+  useEffect(() => {
+    if (!user) return;
+    // Only trigger if the user is queued, the total queue is at least 2, and this user is first
+    if (status.status === 'queued' && status.totalInQueue && status.totalInQueue >= 2 && status.queuePosition === 1) {
+      if (!matchmakingCalled.current) {
+        matchmakingCalled.current = true;
+        console.log("Triggering matchmaking as front of queue");
+        createMatch()
+          .then((response) => console.log("Match response:", response))
+          .catch((err) => {
+            console.error("Error in matchmaking:", err);
+            matchmakingCalled.current = false; // Allow retry on error
+          });
+      }
+    } else {
+      matchmakingCalled.current = false;
+    }
+  }, [user, status]);
 
   const startMatching = async () => {
     console.log('Starting matchmaking process...');
