@@ -353,12 +353,12 @@ export default function Home() {
                   />
                   <span className="text-xl font-semibold">Sign in with Google</span>
                 </button>
-                <Link
+                {/* <Link
                   href="/email"
                   className="text-lg text-gray-600 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 underline decoration-dotted"
                 >
                   Or sign in with email
-                </Link>
+                </Link> */}
               </div>
             )}
 
