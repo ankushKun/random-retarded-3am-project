@@ -723,12 +723,47 @@ function RadarAnimation() {
   );
 }
 
-// New QueueRadar component for a cool radar animation when user is in queue
+// Updated QueueRadar component to show random profile images for matched people
 function QueueRadar() {
+  const [currentProfile, setCurrentProfile] = useState(null);
+
+  useEffect(() => {
+    // Sample profile image URLs (simulate random users)
+    const profiles = [
+      { src: "https://randomuser.me/api/portraits/women/65.jpg" },
+      { src: "https://randomuser.me/api/portraits/men/32.jpg" },
+      { src: "https://randomuser.me/api/portraits/men/15.jpg" },
+      { src: "https://randomuser.me/api/portraits/women/44.jpg" },
+      { src: "https://randomuser.me/api/portraits/men/26.jpg" },
+      { src: "https://randomuser.me/api/portraits/women/12.jpg" }
+    ];
+
+    let index = 0;
+    const interval = setInterval(() => {
+      const newProfile = {
+        ...profiles[index],
+        top: Math.random() * 80 + 10, // positions between 10% and 90%
+        left: Math.random() * 80 + 10,
+      };
+      setCurrentProfile(newProfile);
+      index = (index + 1) % profiles.length;
+    }, 1000); // Replace current profile every 1 second
+
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <div className="queue-radar-container">
       <div className="queue-radar">
         <div className="radar-dot"></div>
+        {currentProfile && (
+          <img
+            src={currentProfile.src}
+            alt="Profile"
+            className="profile-img"
+            style={{ top: `${currentProfile.top}%`, left: `${currentProfile.left}%` }}
+          />
+        )}
       </div>
       <style jsx>{`
         .queue-radar-container {
@@ -757,6 +792,13 @@ function QueueRadar() {
           background: #9f7aea;
           border-radius: 50%;
           transform: translate(-50%, -50%);
+        }
+        .profile-img {
+          position: absolute;
+          width: 30px;
+          height: 30px;
+          border: 2px solid white;
+          border-radius: 50%;
         }
         @keyframes pulse {
           0% {
