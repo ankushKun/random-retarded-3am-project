@@ -817,7 +817,7 @@ export default function CallPage() {
                     )}
 
                     {/* Local video pip - moved to top-right on mobile */}
-                    <div className="absolute top-4 right-4 w-24 sm:w-48 rounded-lg overflow-hidden shadow-lg">
+                    <div className="absolute top-4 right-4 aspect-video h-40 max-w-screen-sm rounded-lg overflow-hidden shadow-lg">
                         <video
                             ref={localVideoRef}
                             autoPlay
@@ -827,7 +827,7 @@ export default function CallPage() {
                         />
                         {isVideoOff && (
                             <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
-                                <div className="h-8 w-8 sm:h-12 sm:w-12 rounded-full bg-gray-700 flex items-center justify-center">
+                                <div className="rounded-full bg-gray-700 flex items-center justify-center">
                                     <span className="text-sm sm:text-xl text-gray-400">
                                         {user?.email?.charAt(0)?.toUpperCase() || '?'}
                                     </span>
@@ -857,7 +857,7 @@ export default function CallPage() {
                                 <span>Muted</span>
                             </div>
                         )}
-                        <div className="bg-gray-900/90 text-white/70 px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm">
+                        <div className="bg-gray-900/90 text-white/70 px-2 sm:px-3 py-1 w-fit rounded-lg text-xs sm:text-sm">
                             Having issues? Try refreshing
                         </div>
                     </div>
