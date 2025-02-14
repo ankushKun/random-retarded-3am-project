@@ -660,7 +660,7 @@ export default function Home() {
       </div>
       {renderMainContent()}
 
-      <div className="fixed bottom-4 right-4 flex gap-4">
+      {/* <div className="fixed bottom-4 right-4 flex gap-4">
         <a
           href="https://github.com/ankushKun/random-retarded-3am-project"
           target="_blank"
@@ -679,7 +679,7 @@ export default function Home() {
         >
           <FaXTwitter size={24} />
         </a>
-      </div>
+      </div> */}
     </Layout>
   );
 }
@@ -725,7 +725,7 @@ function RadarAnimation() {
 
 // Updated QueueRadar component to show random profile images for matched people
 function QueueRadar() {
-  const [currentProfile, setCurrentProfile] = useState(null);
+  const [currentProfile, setCurrentProfile] = useState<{ src: string; top: number; left: number } | null>(null);
 
   useEffect(() => {
     // Sample profile image URLs (simulate random users)
