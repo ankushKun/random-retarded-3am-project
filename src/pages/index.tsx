@@ -7,6 +7,7 @@ import { useRouter } from 'next/router';
 import { joinMatchmaking, getMatchmakingStatus, cancelMatchmaking, createMatch, endSession } from '../utils/api';
 import ProfileSetup from '../components/ProfileSetup';
 import Link from 'next/link';
+import { FaGithub, FaXTwitter } from 'react-icons/fa6';
 
 type MatchmakingStatus = {
   status: 'idle' | 'queued' | 'in_session' | 'cooldown' | 'connecting' | 'error' | 'matched';
@@ -510,6 +511,27 @@ export default function Home() {
         </div>
       </div>
       {renderMainContent()}
+
+      <div className="fixed bottom-4 right-4 flex gap-4">
+        <a
+          href="https://github.com/ankushKun/random-retarded-3am-project"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors"
+          title="View on GitHub"
+        >
+          <FaGithub size={24} />
+        </a>
+        <a
+          href="https://x.com/ankushKun_"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors"
+          title="Follow on X"
+        >
+          <FaXTwitter size={24} />
+        </a>
+      </div>
     </Layout>
   );
 }
