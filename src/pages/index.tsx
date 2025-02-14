@@ -21,6 +21,7 @@ type MatchmakingStatus = {
   connectionStatus?: string;
   lastUpdated?: number;
   activeSessionId?: string;
+  activeCallsCount?: number;
 };
 
 export default function Home() {
@@ -161,6 +162,38 @@ export default function Home() {
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
+  const renderQueueStatus = () => {
+    if (!status) return null;
+
+    return (
+      <div className="text-center space-y-2 mt-4">
+        <div className="flex justify-center space-x-8">
+          <div className="bg-gray-800/50 rounded-lg px-6 py-3">
+            <div className="text-2xl font-bold text-purple-500">
+              {status.totalInQueue || 0}
+            </div>
+            <div className="text-sm text-gray-400">
+              in queue
+            </div>
+          </div>
+          <div className="bg-gray-800/50 rounded-lg px-6 py-3">
+            <div className="text-2xl font-bold text-purple-500">
+              {status.activeCallsCount || 0}
+            </div>
+            <div className="text-sm text-gray-400">
+              in calls
+            </div>
+          </div>
+        </div>
+        {status.status === 'queued' && (
+          <div className="text-sm text-gray-400">
+            Your position: {status.queuePosition} of {status.totalInQueue}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const renderMainContent = () => {
     let content = (
       <div className="min-h-[calc(100vh-4rem)] flex flex-col items-center justify-center p-4">
@@ -178,13 +211,7 @@ export default function Home() {
             {user ? (
               <div className="flex flex-col items-center gap-4 my-12">
                 <div className="flex flex-col items-center gap-2">
-                  <div className="text-sm text-gray-600 dark:text-gray-300 mb-2">
-                    {status.totalInQueue === 1 ? (
-                      '1 person in queue'
-                    ) : (
-                      `${status.totalInQueue || 0} people in queue`
-                    )}
-                  </div>
+                  {renderQueueStatus()}
 
                   <button
                     onClick={isSearching ? cancelSearch : startMatching}
@@ -353,6 +380,7 @@ export default function Home() {
             </div>
           </div>
         </div>
+
       </div>
     );
 

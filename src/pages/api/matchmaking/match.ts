@@ -14,12 +14,11 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
             const result = await db.runTransaction(async (transaction) => {
                 console.log('Starting match transaction');
 
-                // Get users in queue
+                // Get all users in queue
                 const queueSnapshot = await transaction.get(
                     db.collection('matchmaking_queue')
                         .where('status', '==', 'waiting')
                         .orderBy('joinedAt')
-                        .limit(2)
                 );
                 console.log('Queue snapshot size:', queueSnapshot.size);
 
@@ -28,28 +27,46 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
                     return { status: 'not_enough_users' };
                 }
 
-                const users = queueSnapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                }));
-                console.log('Found users for matching:', users);
-
-                // Check if any of these users are already in a session
-                const userDocs = await Promise.all(
-                    users.map(user =>
-                        transaction.get(db.collection('users').doc(user.id))
-                    )
+                // Get user documents for all queued users to check their gender
+                const queuedUsers = await Promise.all(
+                    queueSnapshot.docs.map(async (doc) => {
+                        const userDoc = await transaction.get(db.collection('users').doc(doc.id));
+                        return {
+                            id: doc.id,
+                            joinedAt: doc.data().joinedAt,
+                            gender: userDoc.data()?.gender,
+                            activeSession: userDoc.data()?.activeSession
+                        };
+                    })
                 );
-                console.log('User docs retrieved:', userDocs.map(d => ({ id: d.id, exists: d.exists })));
 
-                // If any user already has an active session, abort
-                if (userDocs.some(doc => doc.exists && doc.data()?.activeSession)) {
-                    console.log('Users already in session, aborting');
-                    return { status: 'users_already_matched' };
+                // Filter out users who already have an active session
+                const availableUsers = queuedUsers.filter(user => !user.activeSession);
+                if (availableUsers.length < 2) {
+                    console.log('Not enough available users');
+                    return { status: 'not_enough_users' };
                 }
 
-                // Create a lock document to prevent race conditions
-                const lockId = users.map(u => u.id).sort().join('-');
+                // Try to match male with female first
+                let matchedPair = null;
+
+                // Find the earliest joined male and female pair
+                const males = availableUsers.filter(u => u.gender === 'male');
+                const females = availableUsers.filter(u => u.gender === 'female');
+
+                if (males.length > 0 && females.length > 0) {
+                    // Sort by join time to get the longest waiting users
+                    const earliestMale = males.sort((a, b) => a.joinedAt.toMillis() - b.joinedAt.toMillis())[0];
+                    const earliestFemale = females.sort((a, b) => a.joinedAt.toMillis() - b.joinedAt.toMillis())[0];
+                    matchedPair = [earliestMale, earliestFemale];
+                } else {
+                    // If no male-female match is possible, match the two longest waiting users
+                    const sortedUsers = availableUsers.sort((a, b) => a.joinedAt.toMillis() - b.joinedAt.toMillis());
+                    matchedPair = [sortedUsers[0], sortedUsers[1]];
+                }
+
+                // Create a lock for the matched pair
+                const lockId = matchedPair.map(u => u.id).sort().join('-');
                 console.log('Generated lock ID:', lockId);
                 const lockRef = db.collection('matching_locks').doc(lockId);
                 const lockDoc = await transaction.get(lockRef);
@@ -67,7 +84,7 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
                 // Create a new session
                 const sessionRef = db.collection('sessions').doc();
                 transaction.set(sessionRef, {
-                    participants: users.map(u => u.id),
+                    participants: matchedPair.map(u => u.id),
                     startTime: FieldValue.serverTimestamp(),
                     videoEndTime: Timestamp.fromMillis(Date.now() + 15 * 60 * 1000), // 15 minutes
                     chatEndTime: Timestamp.fromMillis(Date.now() + 20 * 60 * 1000), // 15 + 5 minutes
@@ -76,20 +93,12 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
                     messages: []
                 });
 
-                // Update users' status
-                for (const user of users) {
+                // Update users' status and remove from queue
+                for (const user of matchedPair) {
                     const userRef = db.collection('users').doc(user.id);
-
-                    if (!userDocs.find(doc => doc.id === user.id)?.exists) {
-                        transaction.set(userRef, {
-                            activeSession: sessionRef.id,
-                            createdAt: FieldValue.serverTimestamp(),
-                        });
-                    } else {
-                        transaction.update(userRef, {
-                            activeSession: sessionRef.id
-                        });
-                    }
+                    transaction.update(userRef, {
+                        activeSession: sessionRef.id
+                    });
 
                     // Remove from queue
                     transaction.delete(db.collection('matchmaking_queue').doc(user.id));
@@ -98,7 +107,7 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
                 return {
                     status: 'success',
                     sessionId: sessionRef.id,
-                    participants: users.map(u => u.id)
+                    participants: matchedPair.map(u => u.id)
                 };
             });
 

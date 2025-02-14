@@ -15,6 +15,13 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
             const userData = userDoc.data();
             console.log('User data:', userData);
 
+            // Get active sessions count
+            const activeSessionsSnapshot = await db.collection('sessions')
+                .where('status', '==', 'video')
+                .count()
+                .get();
+            const activeCallsCount = activeSessionsSnapshot.data().count;
+
             // Check active session
             if (userData?.activeSession) {
                 console.log('User has active session:', userData.activeSession);
@@ -88,15 +95,17 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
                 return res.status(200).json({
                     status: 'queued',
                     queuedAt: queueDoc.data()?.joinedAt.toDate(),
-                    queuePosition: queueCount, // This will show their position in queue
-                    totalInQueue: queueCount
+                    queuePosition: queueCount,
+                    totalInQueue: queueCount,
+                    activeCallsCount: activeCallsCount
                 });
             }
 
             // User is idle
             return res.status(200).json({
                 status: 'idle',
-                totalInQueue: queueCount
+                totalInQueue: queueCount,
+                activeCallsCount: activeCallsCount
             });
 
         } catch (error) {
