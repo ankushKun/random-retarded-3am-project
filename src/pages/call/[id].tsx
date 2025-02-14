@@ -466,34 +466,6 @@ export default function CallPage() {
         };
     }, [user, sessionId]);
 
-    // Session timer and verification
-    useEffect(() => {
-        if (!user || !sessionId) return;
-
-        const checkSession = async () => {
-            try {
-                const status = await getMatchmakingStatus();
-
-                if (status.status !== 'in_session' || status.sessionId !== sessionId) {
-                    router.push('/?cleanup=true');
-                    return;
-                }
-
-                if (status.videoTimeLeft) {
-                    setTimeLeft(Math.floor(status.videoTimeLeft / 1000));
-                }
-            } catch (error) {
-                console.error('Session check failed:', error);
-                setError('Failed to verify session');
-            }
-        };
-
-        const interval = setInterval(checkSession, 5000);
-        checkSession();
-
-        return () => clearInterval(interval);
-    }, [sessionId, user, router]);
-
     // Timer effect
     useEffect(() => {
         if (timeLeft <= 0) {
@@ -732,24 +704,51 @@ export default function CallPage() {
         }
     };
 
-    // Add this effect to listen for messages
+    // Updated session subscription that replaces polling with realtime Firestore updates.
     useEffect(() => {
-        if (!sessionId) return;
+        // Ensure we have a valid session id from the router query.
+        if (!router.query.id) return;
+        const sessionId = router.query.id as string;
+        const sessionDocRef = doc(db, 'sessions', sessionId);
 
-        const sessionRef = doc(db, 'sessions', sessionId as string);
-        const unsubscribe = onSnapshot(sessionRef, (doc) => {
-            if (doc.exists()) {
-                const sessionData = doc.data();
-                const sessionMessages = sessionData.messages || [];
-                setMessages(sessionMessages.map((msg: any) => ({
-                    ...msg,
-                    timestamp: msg.timestamp?.toDate()
-                })));
+        const unsubscribeSession = onSnapshot(sessionDocRef, (docSnap) => {
+            if (docSnap.exists()) {
+                const sessionData = docSnap.data();
+
+                // Verify that the session is still active (in_session).
+                // If the status is no longer 'in_session', redirect with cleanup.
+                if (sessionData.status !== 'in_session' && sessionData.status !== 'video') {
+                    router.push('/?cleanup=true');
+                    return;
+                }
+
+                // Update connection status (here using an object; adjust as needed).
+                setConnectionStatus({ type: 'connected', detail: sessionData.status });
+
+                // Update the partner's peer ID from the session data.
+                setPartnerPeerId(sessionData.peerIds?.[sessionData.partnerId] || null);
+
+                // Update the session timer if videoTimeLeft is available.
+                if (sessionData.videoTimeLeft) {
+                    // Assuming videoTimeLeft is in milliseconds.
+                    setTimeLeft(Math.floor(sessionData.videoTimeLeft / 1000));
+                }
+
+                // (Optional) Update chat messages if they are stored in the session document.
+                if (sessionData.messages) {
+                    setMessages(
+                        sessionData.messages.map((msg: any) => ({
+                            ...msg,
+                            timestamp: msg.timestamp?.toDate()
+                        }))
+                    );
+                }
             }
         });
 
-        return () => unsubscribe();
-    }, [sessionId]);
+        // Clean up the subscription on unmount.
+        return () => unsubscribeSession();
+    }, [router.query.id, router]);
 
     // Add this function to send messages
     const sendMessage = async (e: React.FormEvent) => {
@@ -795,32 +794,6 @@ export default function CallPage() {
         );
     }
 
-    // Add this useEffect to subscribe to session updates
-    useEffect(() => {
-        // Ensure we have a valid session id from the router query
-        if (!router.query.id) return;
-
-        const sessionId = router.query.id as string;
-        const sessionDocRef = doc(db, 'sessions', sessionId);
-
-        // Subscribe to realtime updates for the session document
-        const unsubscribeSession = onSnapshot(sessionDocRef, (docSnap) => {
-            if (docSnap.exists()) {
-                const sessionData = docSnap.data();
-                // Update your call/chats related state using the sessionData.
-                // For example:
-                setConnectionStatus(sessionData.status); // assuming you maintain call status in state
-                setPartnerPeerId(sessionData.peerIds?.[sessionData.partnerId] || null); // update the list of current peer IDs
-
-                // If you have a chat subcollection or chat messages saved in the session, update them accordingly:
-                // setChatMessages(sessionData.chatMessages || []);
-            }
-        });
-
-        // Clean up the subscription on unmount
-        return () => unsubscribeSession();
-    }, [router.query.id]);
-
     return (
         <Layout>
             <div className="min-h-[calc(100vh-4rem)] bg-gray-900 relative">
@@ -864,6 +837,9 @@ export default function CallPage() {
 
                     {/* Status indicators - stacked on mobile */}
                     <div className="absolute top-4 left-4 flex flex-col gap-2 w-[calc(100%-8rem)] sm:w-fit">
+                        <div className="bg-gray-900/90 text-white/70 px-2 sm:px-3 py-1 w-fit rounded-lg text-xs sm:text-sm">
+                            Having issues? Try refreshing the page
+                        </div>
                         <div className={`text-xs sm:text-sm px-2 sm:px-3 py-1 w-fit rounded-lg flex items-center gap-2 ${error ? 'bg-red-500/90 text-white' :
                             connectionStatus.type === 'connected' ? 'bg-green-500/90 text-white' :
                                 connectionStatus.type === 'checking' ? 'bg-yellow-500/90 text-white' :
@@ -883,9 +859,6 @@ export default function CallPage() {
                                 <span>Muted</span>
                             </div>
                         )}
-                        <div className="bg-gray-900/90 text-white/70 px-2 sm:px-3 py-1 w-fit rounded-lg text-xs sm:text-sm">
-                            Having issues? Try refreshing
-                        </div>
                     </div>
 
                     {/* Control bar - adjusted for mobile */}
@@ -894,7 +867,7 @@ export default function CallPage() {
                             {/* Timer - moved above controls on mobile */}
                             <div className="self-center bg-gray-900/90 text-white px-3 py-1 rounded-lg text-center">
                                 <div className="text-xs sm:text-sm text-gray-400">
-                                    Chat available in
+                                    Call ends in
                                 </div>
                                 <div className="text-lg sm:text-xl font-medium text-green-400">
                                     {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
