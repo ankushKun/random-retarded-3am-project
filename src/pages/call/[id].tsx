@@ -7,6 +7,7 @@ import Peer, { MediaConnection } from 'peerjs';
 import { doc, updateDoc, onSnapshot, arrayUnion, Timestamp } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { setGlobalStream, stopMediaStream } from '../../utils/media';
+import { logFirebaseEvent } from '../../lib/firebaseAnalytics';
 
 interface Message {
     id: string;
@@ -548,30 +549,50 @@ export default function CallPage() {
     }, [router]);
 
     const toggleMute = () => {
-        if (localStream) {
-            const newMutedState = !isMuted;
-            localStream.getAudioTracks().forEach(track => {
-                track.enabled = !newMutedState;
-            });
-            setIsMuted(newMutedState);
-
-            // Also update the track in the peer connection if it exists
-            if (currentCall?.peerConnection) {
-                const sender = currentCall.peerConnection.getSenders()
-                    .find(s => s.track?.kind === 'audio');
-                if (sender && sender.track) {
-                    sender.track.enabled = !newMutedState;
-                }
-            }
-        }
+        setIsMuted(prev => {
+            const newMuted = !prev;
+            logFirebaseEvent(newMuted ? 'mic_muted' : 'mic_unmuted', { uid: user?.uid, session: sessionId });
+            return newMuted;
+        });
     };
 
-    const toggleVideo = () => {
-        if (localStream) {
-            localStream.getVideoTracks().forEach(track => {
-                track.enabled = !track.enabled;
-            });
-            setIsVideoOff(!isVideoOff);
+    const toggleVideo = async () => {
+        if (!localStream) return;
+        if (!isVideoOff) {
+            // Turn video off: stop all video tracks
+            localStream.getVideoTracks().forEach((track) => track.stop());
+            // Create new stream preserving only audio tracks
+            const newStream = new MediaStream(localStream.getAudioTracks());
+            setLocalStream(newStream);
+            if (localVideoRef.current) {
+                localVideoRef.current.srcObject = newStream;
+            }
+            setIsVideoOff(true);
+            logFirebaseEvent('video_off', { uid: user?.uid, session: sessionId });
+        } else {
+            // Turn video back on: request new video track only
+            try {
+                const videoStream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 },
+                        frameRate: { ideal: 30, max: 60 },
+                        aspectRatio: { ideal: 1.7777777778 },
+                    },
+                    audio: false,
+                });
+                // Merge new video tracks with existing audio tracks
+                const audioTracks = localStream.getAudioTracks();
+                const newStream = new MediaStream([...audioTracks, ...videoStream.getVideoTracks()]);
+                setLocalStream(newStream);
+                if (localVideoRef.current) {
+                    localVideoRef.current.srcObject = newStream;
+                }
+                setIsVideoOff(false);
+                logFirebaseEvent('video_on', { uid: user?.uid, session: sessionId });
+            } catch (error) {
+                console.error("Error re-enabling video:", error);
+            }
         }
     };
 
@@ -794,6 +815,13 @@ export default function CallPage() {
         );
     }
 
+    // For example, logging when the local stream is set up
+    useEffect(() => {
+        if (localStream) {
+            logFirebaseEvent('local_stream_started', { uid: user?.uid, session: sessionId });
+        }
+    }, [localStream]);
+
     return (
         <Layout>
             <div className="min-h-[calc(100vh-4rem)] bg-gray-900 relative">
@@ -888,7 +916,7 @@ export default function CallPage() {
                                     onClick={toggleVideo}
                                     className={`p-3 sm:p-4 rounded-full ${isVideoOff ? 'bg-red-500 hover:bg-red-600' : 'bg-gray-800 hover:bg-gray-700'
                                         } text-white transition-colors`}
-                                    title={isVideoOff ? "Turn Camera On" : "Turn Camera Off"}
+                                    title={isVideoOff ? "Turn Video On" : "Turn Video Off"}
                                 >
                                     <CameraIcon disabled={isVideoOff} />
                                 </button>

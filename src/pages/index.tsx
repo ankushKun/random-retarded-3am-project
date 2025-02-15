@@ -10,6 +10,7 @@ import Link from 'next/link';
 import { FaGithub, FaXTwitter } from 'react-icons/fa6';
 import { doc, onSnapshot, collection, query, where, orderBy, deleteDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
+import { logFirebaseEvent } from '../lib/firebaseAnalytics';
 
 type MatchmakingStatus = {
   status: 'idle' | 'queued' | 'in_session' | 'cooldown' | 'connecting' | 'error' | 'matched';
@@ -242,6 +243,7 @@ export default function Home() {
     ) {
       matchmakingCalled.current = true;
       console.log("Automatically calling createMatch API");
+      logFirebaseEvent('auto_create_match_initiated', { uid: user?.uid });
       createMatch()
         .then((response) => {
           console.log("Match API response:", response);
@@ -256,11 +258,13 @@ export default function Home() {
                 status: 'in_session',
                 sessionId: matchForUser.sessionId
               }));
+              logFirebaseEvent('auto_create_match_success', { uid: user?.uid, session: matchForUser.sessionId });
             }
           }
         })
         .catch((error) => {
           console.error("Error calling match API:", error);
+          logFirebaseEvent('auto_create_match_error', { uid: user?.uid, error: error.toString() });
         })
         .finally(() => {
           matchmakingCalled.current = false;
@@ -270,21 +274,25 @@ export default function Home() {
 
   const startMatching = async () => {
     console.log('Starting matchmaking process...');
+    logFirebaseEvent('matchmaking_join_start', { uid: user?.uid });
     try {
       setError(null);
       setIsSearching(true);
       const response = await joinMatchmaking();
       console.log('Join matchmaking response:', response);
-
       if (response.error) {
         console.error('Join matchmaking error:', response.error);
         setError(response.error);
         setIsSearching(false);
+        logFirebaseEvent('matchmaking_join_fail', { uid: user?.uid, error: response.error });
+      } else {
+        logFirebaseEvent('matchmaking_join_success', { uid: user?.uid });
       }
     } catch (error) {
       console.error('Failed to join matchmaking:', error);
       setError('Failed to join matchmaking');
       setIsSearching(false);
+      logFirebaseEvent('matchmaking_join_fail', { uid: user?.uid, error: error instanceof Error ? error.message : 'Unknown error' });
     }
   };
 
@@ -293,9 +301,11 @@ export default function Home() {
       setError(null);
       await cancelMatchmaking();
       setIsSearching(false);
+      logFirebaseEvent('matchmaking_cancel', { uid: user?.uid });
     } catch (error) {
       console.error('Failed to cancel matchmaking:', error);
       setError('Failed to cancel matchmaking');
+      logFirebaseEvent('matchmaking_cancel_error', { uid: user?.uid, error: error instanceof Error ? error.message : 'Unknown error' });
     }
   };
 
