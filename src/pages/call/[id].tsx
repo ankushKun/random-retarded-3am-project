@@ -67,21 +67,6 @@ export default function CallPage() {
         });
     }, []);
 
-    const setupCallHandlers = (call: MediaConnection) => {
-        setCurrentCall(call);
-        // When a remote stream is received, attach it to the remote video element.
-        call.on("stream", (remoteStream: MediaStream) => {
-            if (remoteVideoRef.current) {
-                remoteVideoRef.current.srcObject = remoteStream;
-            }
-        });
-
-        // Handle call close event.
-        call.on("close", () => {
-            setCurrentCall(null);
-        });
-    };
-
     // Initialize peer connection
     useEffect(() => {
         if (!user || !sessionId) return;
@@ -174,7 +159,33 @@ export default function CallPage() {
                     await updatePeerId(sessionId as string, myPeerId);
                     console.log('Successfully stored peer ID');
 
-                    // Partner connection is now handled via the Firestore listener below.
+                    const attemptConnection = async () => {
+                        console.log('Checking for partner peer ID...');
+                        const status = await getMatchmakingStatus();
+                        console.log('Status response:', status);
+
+                        if (status.partnerId && status.peerIds?.[status.partnerId]) {
+                            const partnerPeerId = status.peerIds[status.partnerId];
+                            console.log('Partner peer ID found:', partnerPeerId);
+                            setPartnerPeerId(partnerPeerId);
+
+                            // Both peers try to call each other, but only the first successful call will be established
+                            if (!currentCall) {
+                                try {
+                                    console.log('Attempting to initiate call to:', partnerPeerId);
+                                    const call = newPeer.call(partnerPeerId, stream);
+                                    setupCallHandlers(call);
+                                } catch (error) {
+                                    console.error('Call initiation failed:', error);
+                                }
+                            }
+                        } else {
+                            console.log('No partner peer ID yet, retrying in 1s');
+                            setTimeout(attemptConnection, 1000);
+                        }
+                    };
+
+                    attemptConnection();
                 } catch (error) {
                     console.error('Peer setup failed:', error);
                     setError('Failed to connect with partner');
@@ -716,6 +727,7 @@ export default function CallPage() {
 
     // Updated session subscription that replaces polling with realtime Firestore updates.
     useEffect(() => {
+        // Ensure we have a valid session id from the router query.
         if (!router.query.id) return;
         const sessionId = router.query.id as string;
         const sessionDocRef = doc(db, 'sessions', sessionId);
@@ -723,44 +735,41 @@ export default function CallPage() {
         const unsubscribeSession = onSnapshot(sessionDocRef, (docSnap) => {
             if (docSnap.exists()) {
                 const sessionData = docSnap.data();
+
+                // Verify that the session is still active (in_session).
+                // If the status is no longer 'in_session', redirect with cleanup.
                 if (sessionData.status !== 'in_session' && sessionData.status !== 'video') {
                     router.push('/?cleanup=true');
-                } else {
-                    setConnectionStatus({ type: 'connected', detail: sessionData.status });
+                    return;
+                }
 
-                    // Check for a partner peer ID from the Firestore document
-                    const partnerId = sessionData.partnerId;
-                    const partnerPeerId = sessionData.peerIds?.[partnerId];
-                    if (partnerPeerId) {
-                        setPartnerPeerId(partnerPeerId);
-                        // If not already in a call, initiate the call using the peer instance and local stream.
-                        if (!currentCall && peer && localStream) {
-                            try {
-                                console.log('Initiating call to partner via Firestore update:', partnerPeerId);
-                                const call = peer.call(partnerPeerId, localStream);
-                                setupCallHandlers(call);
-                            } catch (error) {
-                                console.error('Call initiation failed via Firestore listener:', error);
-                            }
-                        }
-                        // Unsubscribe as soon as partner is detected to avoid further reads.
-                        unsubscribeSession();
-                    }
-                    if (sessionData.videoTimeLeft) {
-                        setTimeLeft(Math.floor(sessionData.videoTimeLeft / 1000));
-                    }
-                    if (sessionData.messages) {
-                        setMessages(
-                            sessionData.messages.map((msg: any) => ({
-                                ...msg,
-                                timestamp: msg.timestamp?.toDate()
-                            }))
-                        );
-                    }
+                // Update connection status (here using an object; adjust as needed).
+                setConnectionStatus({ type: 'connected', detail: sessionData.status });
+
+                // Update the partner's peer ID from the session data.
+                setPartnerPeerId(sessionData.peerIds?.[sessionData.partnerId] || null);
+
+                // Update the session timer if videoTimeLeft is available.
+                if (sessionData.videoTimeLeft) {
+                    // Assuming videoTimeLeft is in milliseconds.
+                    setTimeLeft(Math.floor(sessionData.videoTimeLeft / 1000));
+                }
+
+                // (Optional) Update chat messages if they are stored in the session document.
+                if (sessionData.messages) {
+                    setMessages(
+                        sessionData.messages.map((msg: any) => ({
+                            ...msg,
+                            timestamp: msg.timestamp?.toDate()
+                        }))
+                    );
                 }
             }
         });
-    }, [router.query.id, router, currentCall, peer, localStream]);
+
+        // Clean up the subscription on unmount.
+        return () => unsubscribeSession();
+    }, [router.query.id, router]);
 
     // Add this function to send messages
     const sendMessage = async (e: React.FormEvent) => {
@@ -1054,4 +1063,4 @@ function EndCallIcon() {
             <line x1="4" y1="20" x2="20" y2="4" stroke="currentColor" strokeWidth="2" />
         </svg>
     );
-}
+} 
