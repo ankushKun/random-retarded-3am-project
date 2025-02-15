@@ -26,7 +26,7 @@ export default function Layout({ children, title }: { children: React.ReactNode,
     }, [router]);
 
     return (
-        <div className="min-h-screen bg-gradient-to-b from-purple-50 to-pink-50 dark:from-gray-900 dark:to-gray-800">
+        <div className=" min-h-screen flex flex-col bg-gradient-to-b from-purple-50 to-pink-50 dark:from-gray-900 dark:to-gray-800">
             <Head>
                 <title>{pageTitle}</title>
                 <meta name="description" content="Connect with people through quick 15-minute video conversations. If you click, get 5 bonus minutes to exchange contacts!" />
@@ -40,7 +40,7 @@ export default function Layout({ children, title }: { children: React.ReactNode,
                 <link rel="icon" href="/favicon.ico" />
             </Head>
 
-            <nav className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm fixed w-full z-10 border-b border-gray-200 dark:border-gray-700">
+            <nav className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm w-full z-10 border-b border-gray-200 dark:border-gray-700">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex justify-between h-16">
                         <div className="flex items-center">
@@ -82,7 +82,7 @@ export default function Layout({ children, title }: { children: React.ReactNode,
                 </div>
             </nav>
 
-            <main className="pt-16">
+            <main className="flex-grow h-full">
                 {children}
             </main>
         </div>

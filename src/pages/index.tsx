@@ -352,7 +352,7 @@ export default function Home() {
 
   const renderMainContent = () => {
     let content = (
-      <div className="min-h-[calc(100vh-4rem)] flex flex-col items-center justify-center p-4">
+      <div className=" flex flex-col items-center justify-center p-4">
         <div className="max-w-3xl text-center">
           <h1 className="text-5xl font-bold text-gray-900 dark:text-white mb-8">
             Call Me Maybe 🤙
@@ -387,7 +387,7 @@ export default function Home() {
                     )}
                   </button>
 
-                  {isSearching && (
+                  {/* {isSearching && (
                     <div className="flex flex-col items-center gap-2 mt-4">
                       <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300">
                         <div className={`h-2 w-2 rounded-full ${status.status === 'error'
@@ -410,7 +410,7 @@ export default function Home() {
                         Cancel matching
                       </button>
                     </div>
-                  )}
+                  )} */}
                 </div>
 
                 {error && (
@@ -631,10 +631,26 @@ export default function Home() {
     return content;
   };
 
+  const productHuntBadge = () => {
+    return (
+      <div className="producthunt-badge text-center fixed bottom-4 left-4 z-30">
+        <Link href="https://www.producthunt.com/posts/call-me-maybe?embed=true&utm_source=badge-featured&utm_medium=badge&utm_souce=badge-call&#0045;me&#0045;maybe" target="_blank" rel="noopener noreferrer">
+          <img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=880188&theme=light&t=1739615055643"
+            alt="Call Me Maybe - Swipe less, vibe more. Call Me Maybe? | Product Hunt"
+            style={{ width: '250px', height: '54px' }}
+            width="200"
+            height="54" />
+        </Link>
+      </div>
+    );
+  };
+
   if (!user) {
     return (
       <Layout title="Welcome">
         <FallingHearts />
+        {productHuntBadge()}
+
         {renderMainContent()}
       </Layout>
     );
@@ -651,7 +667,9 @@ export default function Home() {
   return (
     <Layout>
       <FallingHearts />
-      <div className="fixed top-0 left-0 right-0 bg-gray-100 dark:bg-gray-800 p-2 text-sm">
+      {productHuntBadge()}
+
+      {/* <div className="fixed top-0 left-0 right-0 bg-gray-100 dark:bg-gray-800 p-2 text-sm">
         <div className="max-w-2xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-2">
             <div className={`w-2 h-2 rounded-full ${connectionStatus === 'Connected'
@@ -666,11 +684,11 @@ export default function Home() {
             Last updated: {getTimeSinceUpdate()}
           </div>
         </div>
-      </div>
+      </div> */}
       {renderMainContent()}
 
       <div className="fixed bottom-4 right-4 flex gap-4">
-        <a
+        <Link
           href="https://github.com/ankushKun/random-retarded-3am-project"
           target="_blank"
           rel="noopener noreferrer"
@@ -678,8 +696,8 @@ export default function Home() {
           title="View on GitHub"
         >
           <FaGithub size={24} />
-        </a>
-        <a
+        </Link>
+        <Link
           href="https://x.com/ankushKun_"
           target="_blank"
           rel="noopener noreferrer"
@@ -687,7 +705,7 @@ export default function Home() {
           title="Follow on X"
         >
           <FaXTwitter size={24} />
-        </a>
+        </Link>
       </div>
     </Layout>
   );

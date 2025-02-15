@@ -179,7 +179,7 @@ export default function Profile() {
                                     <div className="grid grid-cols-2 gap-4">
                                         <div>
                                             <p className="text-gray-600 dark:text-gray-400">Name</p>
-                                            <p className="text-black dark:text-white">{userProfile?.name || 'Not set'}</p>
+                                            <p className="text-black dark:text-white overflow-scroll">{userProfile?.name || 'Not set'}</p>
                                         </div>
                                         <div>
                                             <p className="text-gray-600 dark:text-gray-400">Gender</p>
@@ -193,11 +193,11 @@ export default function Profile() {
                                     <div className="grid grid-cols-2 gap-4">
                                         <div>
                                             <p className="text-gray-600 dark:text-gray-400">Email</p>
-                                            <p className="text-black dark:text-white">{user?.email}</p>
+                                            <p className="text-black dark:text-white overflow-scroll">{user?.email}</p>
                                         </div>
                                         <div>
                                             <p className="text-gray-600 dark:text-gray-400">User ID</p>
-                                            <p className="text-black dark:text-white font-mono text-sm">{user?.uid}</p>
+                                            <p className="text-black dark:text-white overflow-scroll font-mono text-sm">{user?.uid}</p>
                                         </div>
                                     </div>
                                 </div>
