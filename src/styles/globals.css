@@ -29,3 +29,7 @@
       opacity: 0;
     }
   }
+
+  .markdown>* {
+    all: revert !important;
+}
