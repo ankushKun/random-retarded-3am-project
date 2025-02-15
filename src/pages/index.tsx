@@ -352,7 +352,7 @@ export default function Home() {
 
   const renderMainContent = () => {
     let content = (
-      <div className=" flex flex-col items-center justify-center p-4">
+      <div className=" flex flex-col items-center sm:h-[calc(100vh-64px)] justify-center p-4">
         <div className="max-w-3xl text-center">
           <h1 className="text-5xl font-bold text-gray-900 dark:text-white mb-8">
             Call Me Maybe 🤙
