@@ -7,7 +7,8 @@ import Peer, { MediaConnection } from 'peerjs';
 import { doc, updateDoc, onSnapshot, arrayUnion, Timestamp } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { setGlobalStream, stopMediaStream } from '../../utils/media';
-import { logFirebaseEvent } from '../../lib/firebaseAnalytics';
+// import { logGoogleEvent } from '../../lib/gtag';
+// import { logFirebaseEvent } from '../../lib/firebaseAnalytics';
 
 interface Message {
     id: string;
@@ -542,7 +543,9 @@ export default function CallPage() {
     const toggleMute = () => {
         setIsMuted(prev => {
             const newMuted = !prev;
-            logFirebaseEvent(newMuted ? 'mic_muted' : 'mic_unmuted', { uid: user?.uid, session: sessionId });
+            if (user && sessionId) {
+                // logGoogleEvent(newMuted ? 'mic_muted' : 'mic_unmuted', { uid: user.uid, session: sessionId });
+            }
             return newMuted;
         });
     };
@@ -559,7 +562,6 @@ export default function CallPage() {
                 localVideoRef.current.srcObject = newStream;
             }
             setIsVideoOff(true);
-            logFirebaseEvent('video_off', { uid: user?.uid, session: sessionId });
         } else {
             // Turn video back on: request new video track only
             try {
@@ -580,7 +582,9 @@ export default function CallPage() {
                     localVideoRef.current.srcObject = newStream;
                 }
                 setIsVideoOff(false);
-                logFirebaseEvent('video_on', { uid: user?.uid, session: sessionId });
+                if (user && sessionId) {
+                    // logGoogleEvent('video_on', { uid: user.uid, session: sessionId });
+                }
             } catch (error) {
                 console.error("Error re-enabling video:", error);
             }
@@ -808,8 +812,8 @@ export default function CallPage() {
 
     // For example, logging when the local stream is set up
     useEffect(() => {
-        if (localStream) {
-            logFirebaseEvent('local_stream_started', { uid: user?.uid, session: sessionId });
+        if (localStream && user && sessionId) {
+            // logGoogleEvent('local_stream_started', { uid: user.uid, session: sessionId });
         }
     }, [localStream]);
 
