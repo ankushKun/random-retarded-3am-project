@@ -58,8 +58,8 @@ export default function Profile() {
     if (loading) {
         return (
             <Layout>
-                <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-                    <div className="text-white">Loading...</div>
+                <div className="min-h-screen flex items-center justify-center">
+                    <div className="text-black dark:text-white">Loading...</div>
                 </div>
             </Layout>
         );
@@ -67,10 +67,10 @@ export default function Profile() {
 
     return (
         <Layout title="Profile">
-            <div className="min-h-screen bg-gray-900 p-8">
+            <div className="h-[calc(100vh-65px)] p-8">
                 <div className="max-w-2xl mx-auto">
                     <div className="flex justify-between items-center mb-8">
-                        <h1 className="text-3xl font-bold text-white">Profile</h1>
+                        <h1 className="text-3xl font-bold text-black dark:text-white">Profile</h1>
                         {!isEditing && (
                             <button
                                 onClick={() => setIsEditing(true)}
@@ -93,18 +93,18 @@ export default function Profile() {
                         </div>
                     )}
 
-                    <div className="bg-gray-800 rounded-lg p-6 shadow-lg">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg">
                         <div className="flex items-center space-x-4 mb-6">
-                            <div className="h-20 w-20 rounded-full bg-gray-700 flex items-center justify-center">
-                                <span className="text-3xl text-gray-400">
+                            <div className="h-20 w-20 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                                <span className="text-3xl text-gray-700 dark:text-gray-300">
                                     {userProfile?.name?.charAt(0)?.toUpperCase() || user?.email?.charAt(0)?.toUpperCase() || '?'}
                                 </span>
                             </div>
                             <div>
-                                <h2 className="text-xl font-semibold text-white">
+                                <h2 className="text-xl font-semibold text-black dark:text-white">
                                     {userProfile?.name || user?.email}
                                 </h2>
-                                <p className="text-gray-400">
+                                <p className="text-gray-600 dark:text-gray-400">
                                     Member since {user?.metadata.creationTime ? new Date(user.metadata.creationTime).toLocaleDateString() : 'Unknown'}
                                 </p>
                             </div>
@@ -113,20 +113,20 @@ export default function Profile() {
                         {isEditing ? (
                             <form onSubmit={handleSubmit} className="space-y-6">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                         Name
                                     </label>
                                     <input
                                         type="text"
                                         value={name}
                                         onChange={(e) => setName(e.target.value)}
-                                        className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                        className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
                                         required
                                     />
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                         Gender
                                     </label>
                                     <div className="flex gap-4">
@@ -139,7 +139,7 @@ export default function Profile() {
                                                 onChange={(e) => setGender(e.target.value as 'male')}
                                                 className="mr-2"
                                             />
-                                            <span className="text-white">Male</span>
+                                            <span className="text-black dark:text-white">Male</span>
                                         </label>
                                         <label className="flex items-center">
                                             <input
@@ -150,7 +150,7 @@ export default function Profile() {
                                                 onChange={(e) => setGender(e.target.value as 'female')}
                                                 className="mr-2"
                                             />
-                                            <span className="text-white">Female</span>
+                                            <span className="text-black dark:text-white">Female</span>
                                         </label>
                                     </div>
                                 </div>
@@ -159,15 +159,14 @@ export default function Profile() {
                                     <button
                                         type="submit"
                                         disabled={isSubmitting}
-                                        className={`px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-md flex-1 ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''
-                                            }`}
+                                        className={`px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-md flex-1 ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
                                     >
                                         {isSubmitting ? 'Saving...' : 'Save Changes'}
                                     </button>
                                     <button
                                         type="button"
                                         onClick={() => setIsEditing(false)}
-                                        className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-md"
+                                        className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-black dark:bg-gray-600 dark:hover:bg-gray-700 dark:text-white rounded-md"
                                     >
                                         Cancel
                                     </button>
@@ -175,30 +174,30 @@ export default function Profile() {
                             </form>
                         ) : (
                             <div className="space-y-4">
-                                <div className="border-t border-gray-700 pt-4">
-                                    <h3 className="text-lg font-medium text-white mb-2">Profile Information</h3>
+                                <div className="border-t border-gray-300 dark:border-gray-700 pt-4">
+                                    <h3 className="text-lg font-medium text-black dark:text-white mb-2">Profile Information</h3>
                                     <div className="grid grid-cols-2 gap-4">
                                         <div>
-                                            <p className="text-gray-400">Name</p>
-                                            <p className="text-white">{userProfile?.name || 'Not set'}</p>
+                                            <p className="text-gray-600 dark:text-gray-400">Name</p>
+                                            <p className="text-black dark:text-white">{userProfile?.name || 'Not set'}</p>
                                         </div>
                                         <div>
-                                            <p className="text-gray-400">Gender</p>
-                                            <p className="text-white capitalize">{userProfile?.gender || 'Not set'}</p>
+                                            <p className="text-gray-600 dark:text-gray-400">Gender</p>
+                                            <p className="text-black dark:text-white capitalize">{userProfile?.gender || 'Not set'}</p>
                                         </div>
                                     </div>
                                 </div>
 
-                                <div className="border-t border-gray-700 pt-4">
-                                    <h3 className="text-lg font-medium text-white mb-2">Account Details</h3>
+                                <div className="border-t border-gray-300 dark:border-gray-700 pt-4">
+                                    <h3 className="text-lg font-medium text-black dark:text-white mb-2">Account Details</h3>
                                     <div className="grid grid-cols-2 gap-4">
                                         <div>
-                                            <p className="text-gray-400">Email</p>
-                                            <p className="text-white">{user?.email}</p>
+                                            <p className="text-gray-600 dark:text-gray-400">Email</p>
+                                            <p className="text-black dark:text-white">{user?.email}</p>
                                         </div>
                                         <div>
-                                            <p className="text-gray-400">User ID</p>
-                                            <p className="text-white font-mono text-sm">{user?.uid}</p>
+                                            <p className="text-gray-600 dark:text-gray-400">User ID</p>
+                                            <p className="text-black dark:text-white font-mono text-sm">{user?.uid}</p>
                                         </div>
                                     </div>
                                 </div>

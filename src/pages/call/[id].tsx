@@ -87,9 +87,6 @@ export default function CallPage() {
                     iceServers: [
                         { urls: 'stun:stun.l.google.com:19302' },
                         { urls: 'stun:stun.relay.metered.ca:80' },
-                        // { urls: 'turn:a.relay.metered.ca:80', username: 'YOUR_USERNAME', credential: 'YOUR_CREDENTIAL' },
-                        // { urls: 'turn:a.relay.metered.ca:443', username: 'YOUR_USERNAME', credential: 'YOUR_CREDENTIAL' },
-                        // { urls: 'turn:a.relay.metered.ca:443?transport=tcp', username: 'YOUR_USERNAME', credential: 'YOUR_CREDENTIAL' }
                     ],
                     iceTransportPolicy: 'all',
                     iceCandidatePoolSize: 10,
@@ -108,12 +105,6 @@ export default function CallPage() {
                             height: { ideal: 720 },
                             frameRate: { ideal: 30, max: 60 },
                             aspectRatio: { ideal: 1.7777777778 },
-                            // Enable hardware acceleration when available
-                            // encoderConfig: {
-                            //     bitrateMax: 1000000, // 1Mbps
-                            //     bitrateMin: 250000,  // 250kbps
-                            //     hardwareAcceleration: 'prefer-hardware'
-                            // } as any
                         },
                         audio: {
                             echoCancellation: true,
@@ -666,7 +657,7 @@ export default function CallPage() {
         return (
             <div className="relative">
                 <button
-                    className="p-4 rounded-full bg-gray-800 hover:bg-gray-700 !text-white transition-colors"
+                    className="p-4 rounded-full bg-gray-700 hover:bg-gray-600 text-white transition-colors"
                     title="Switch Camera"
                     onClick={() => setIsCameraSelectorOpen(!isCameraSelectorOpen)}
                 >
@@ -679,7 +670,7 @@ export default function CallPage() {
                             className="fixed inset-0 z-10"
                             onClick={() => setIsCameraSelectorOpen(false)}
                         />
-                        <div className="absolute bottom-full mb-2 z-20 min-w-[200px] bg-gray-800 rounded-lg shadow-lg overflow-hidden">
+                        <div className="absolute bottom-full mb-2 z-20 min-w-[200px] bg-gray-700 rounded-lg shadow-lg overflow-hidden">
                             {devices.map(device => (
                                 <button
                                     key={device.deviceId}
@@ -687,7 +678,7 @@ export default function CallPage() {
                                         switchCamera(device.deviceId);
                                         setIsCameraSelectorOpen(false);
                                     }}
-                                    className={`w-full px-4 py-2 text-left text-sm text-white hover:bg-gray-700 ${selectedCamera === device.deviceId ? 'bg-gray-700' : ''
+                                    className={`w-full px-4 py-2 text-left text-sm text-gray-200 hover:bg-gray-600 ${selectedCamera === device.deviceId ? 'bg-gray-600' : ''
                                         }`}
                                 >
                                     {device.label || `Camera ${devices.indexOf(device) + 1}`}
@@ -799,7 +790,7 @@ export default function CallPage() {
     const ChatToggleButton = () => (
         <button
             onClick={() => setIsChatOpen(!isChatOpen)}
-            className={`p-3 sm:p-4 rounded-full ${isChatOpen ? 'bg-purple-600' : 'bg-gray-800 hover:bg-gray-700'} text-white transition-colors`}
+            className={`p-3 sm:p-4 rounded-full ${isChatOpen ? 'bg-purple-600' : 'bg-gray-700 hover:bg-gray-600'} text-white transition-colors`}
             title={isChatOpen ? "Close Chat" : "Open Chat"}
         >
             <ChatIcon />
@@ -906,7 +897,7 @@ export default function CallPage() {
                             <div className="flex items-center justify-center gap-3 sm:gap-4">
                                 <button
                                     onClick={toggleMute}
-                                    className={`p-3 sm:p-4 rounded-full ${isMuted ? 'bg-red-500 hover:bg-red-600' : 'bg-gray-800 hover:bg-gray-700'
+                                    className={`p-3 sm:p-4 rounded-full ${isMuted ? 'bg-red-500 hover:bg-red-600' : 'bg-gray-700 hover:bg-gray-600'
                                         } text-white transition-colors`}
                                     title={isMuted ? "Unmute" : "Mute"}
                                 >
@@ -914,7 +905,7 @@ export default function CallPage() {
                                 </button>
                                 <button
                                     onClick={toggleVideo}
-                                    className={`p-3 sm:p-4 rounded-full ${isVideoOff ? 'bg-red-500 hover:bg-red-600' : 'bg-gray-800 hover:bg-gray-700'
+                                    className={`p-3 sm:p-4 rounded-full ${isVideoOff ? 'bg-red-500 hover:bg-red-600' : 'bg-gray-700 hover:bg-gray-600'
                                         } text-white transition-colors`}
                                     title={isVideoOff ? "Turn Video On" : "Turn Video Off"}
                                 >
@@ -936,12 +927,12 @@ export default function CallPage() {
 
                 {/* Chat panel */}
                 {isChatOpen && (
-                    <div className="absolute right-0 top-0 bottom-0 w-80 bg-white dark:bg-gray-800 shadow-lg flex flex-col">
-                        <div className="p-4 border-b dark:border-gray-700 flex justify-between items-center">
-                            <h3 className="font-semibold text-gray-900 dark:text-white">Chat</h3>
+                    <div className="absolute right-0 top-0 bottom-0 w-80 bg-white shadow-lg flex flex-col">
+                        <div className="p-4 border-b flex justify-between items-center">
+                            <h3 className="font-semibold text-gray-900">Chat</h3>
                             <button
                                 onClick={() => setIsChatOpen(false)}
-                                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                                className="text-gray-500 hover:text-gray-700"
                             >
                                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                     <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -959,13 +950,13 @@ export default function CallPage() {
                                     <div
                                         className={`max-w-[80%] rounded-lg px-4 py-2 ${msg.senderId === user?.uid
                                             ? 'bg-purple-600 text-white'
-                                            : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white'
+                                            : 'bg-gray-200 text-gray-900'
                                             }`}
                                     >
                                         <div>{msg.text}</div>
                                         <div className={`text-xs mt-1 ${msg.senderId === user?.uid
                                             ? 'text-purple-200'
-                                            : 'text-gray-500 dark:text-gray-400'
+                                            : 'text-gray-500'
                                             }`}>
                                             {new Date(msg.timestamp).toLocaleTimeString([], {
                                                 hour: '2-digit',
@@ -977,14 +968,14 @@ export default function CallPage() {
                             ))}
                         </div>
 
-                        <form onSubmit={sendMessage} className="p-4 border-t dark:border-gray-700">
+                        <form onSubmit={sendMessage} className="p-4 border-t">
                             <div className="flex gap-2">
                                 <input
                                     type="text"
                                     value={message}
                                     onChange={(e) => setMessage(e.target.value)}
                                     placeholder="Type a message..."
-                                    className="flex-1 rounded-full text-white px-4 py-2 bg-gray-100 dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-purple-600"
+                                    className="flex-1 rounded-full text-gray-900 px-4 py-2 bg-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-600"
                                 />
                                 <button
                                     type="submit"
