@@ -1,40 +1,53 @@
-This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# Call Me Maybe 🤙
 
-## Getting Started
+live video dating app
 
-First, run the development server:
+- Lock in with a match for 15 minutes
+- No brainless swiping
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+Upvote us on Product Hunt
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+<div style="display: flex; align-items: center;">
+    <a href="https://www.producthunt.com/posts/call-me-maybe?embed=true&utm_source=badge-featured&utm_medium=badge&utm_souce=badge-call&#0045;me&#0045;maybe" target="_blank">
+        <img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=880188&theme=light&t=1739691988280" alt="Call&#0032;Me&#0032;Maybe - Swipe&#0032;less&#0044;&#0032;vibe&#0032;more&#0046;&#0032;Call&#0032;Me&#0032;Maybe&#0063; | Product Hunt" style="width: 250px; height: 54px;" width="250" height="54" />
+    </a>
+    <a href="https://callmemaybe.xyz" target="_blank">
+        <img alt="Static Badge" src="https://img.shields.io/badge/-callmemaybe.xyz-blue?style=for-the-badge&logo=call" style="margin-left: 10px; width: 250px; height: 54px; border-radius: 8px;" />
+    </a>
+</div>
 
-You can start editing the page by modifying `pages/index.tsx`. The page auto-updates as you edit the file.
 
-[API routes](https://nextjs.org/docs/api-routes/introduction) can be accessed on [http://localhost:3000/api/hello](http://localhost:3000/api/hello). This endpoint can be edited in `pages/api/hello.ts`.
 
-The `pages/api` directory is mapped to `/api/*`. Files in this directory are treated as [API routes](https://nextjs.org/docs/api-routes/introduction) instead of React pages.
 
-This project uses [`next/font`](https://nextjs.org/docs/basic-features/font-optimization) to automatically optimize and load Inter, a custom Google Font.
+## Setup
 
-## Learn More
+Make sure you have Node.js and npm installed on your machine before starting the setup.
 
-To learn more about Next.js, take a look at the following resources:
+1. Fork and Clone the repository:
+   ```bash
+   git clone https://github.com/<yourusername>/random-retarded-3am-project call-me-maybe
+   cd call-me-maybe
+   ```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+2. Install the required dependencies:
+   ```bash
+   npm install
+   ```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
+3. Copy env file
+   ```bash
+   mv .env.template .env.local
+   ```
 
-## Deploy on Vercel
+4. Setup a new project with Google [Firebase](https://firebase.google.com/) and enable firestore, authentication and analytics.
+   Go into settings and add a web application, you will get the necessasary keys. Add them to the `.env.local`
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+5. Run the project
+   ```
+   npm run dev
+   ```
+   the app will be available at http://localhost:3000
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+---
+
+A product of [weeblabs](https://weeblabs.com)
